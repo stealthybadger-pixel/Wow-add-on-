@@ -360,17 +360,30 @@ local function SetSlotGlow(slot, r, g, b, baseAlpha)
 end
 
 local function CreateSlot(index)
-	local f = CreateFrame("Frame", ADDON_NAME .. "Slot" .. index, container, "BackdropTemplate")
+	local f = CreateFrame("Button", ADDON_NAME .. "Slot" .. index, container, "SecureUnitButtonTemplate,BackdropTemplate")
 	f:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
 	f:SetBackdrop({
 		bgFile = "Interface\\Buttons\\WHITE8x8",
 	})
 	f:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
 
+	-- Secure click registration for Clique and default WoW targeting
+	f:RegisterForClicks("AnyUp", "AnyDown")
+	f:SetAttribute("*type1", "target")
+	f:SetAttribute("*type2", "togglemenu")
+
+	-- Register frame with Clique's third-party unit frame registry
+	ClickCastFrames = ClickCastFrames or {}
+	ClickCastFrames[f] = true
+	if Clique and Clique.RegisterFrame then
+		Clique:RegisterFrame(f)
+	end
+
 	-- Soft outer glow layers rendered behind f
 	local glowContainer = CreateFrame("Frame", nil, f)
 	glowContainer:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
 	glowContainer:SetAllPoints(f)
+	glowContainer:EnableMouse(false)
 
 	local glowLayers = {}
 	local glowOffsets = { 1, 2, 3, 4 }
@@ -383,12 +396,14 @@ local function CreateSlot(index)
 			edgeSize = 1,
 		})
 		layer:SetBackdropBorderColor(0, 0, 0, 0)
+		layer:EnableMouse(false)
 		glowLayers[i] = layer
 	end
 
 	-- Dedicated border overlay frame at a higher FrameLevel (f:GetFrameLevel() + 10)
 	-- ensures the combat state outline is rendered above all interior slot content
-	-- as a clean, uninterrupted outer border.
+	-- as a clean, uninterrupted outer border. Mouse interaction is disabled so clicks
+	-- pass directly to the secure Button f underneath.
 	local borderFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
 	borderFrame:SetAllPoints(f)
 	borderFrame:SetFrameLevel(f:GetFrameLevel() + 10)
@@ -419,6 +434,7 @@ local function CreateSlot(index)
 		local iconFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
 		iconFrame:SetSize(HOT_ICON_SIZE, HOT_ICON_SIZE)
 		iconFrame:SetPoint("TOPLEFT", f, "TOPLEFT", startX + (i - 1) * (HOT_ICON_SIZE + iconGap), -10)
+		iconFrame:EnableMouse(false)
 		iconFrame:SetBackdrop({
 			edgeFile = "Interface\\Buttons\\WHITE8x8",
 			edgeSize = 1,
@@ -434,6 +450,7 @@ local function CreateSlot(index)
 		cd:SetReverse(true)
 		cd:SetDrawEdge(false)
 		cd:SetSwipeColor(0, 0, 0, 0.7)
+		cd:EnableMouse(false)
 
 		local countText = iconFrame:CreateFontString(nil, "OVERLAY")
 		countText:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", 0, 0)
@@ -456,6 +473,7 @@ local function CreateSlot(index)
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	healthBar:SetMinMaxValues(0, 1)
 	healthBar:SetValue(1)
+	healthBar:EnableMouse(false)
 
 	local healthBarBg = healthBar:CreateTexture(nil, "BACKGROUND")
 	healthBarBg:SetAllPoints(healthBar)
@@ -716,10 +734,18 @@ end
 local function UpdateSlot(slot, unit)
 	slot.unit = unit
 	if not unit or not UnitExists(unit) then
-		slot.frame:Hide()
+		if not InCombatLockdown() then
+			slot.frame:SetAttribute("unit", nil)
+			slot.frame:Hide()
+		end
 		return
 	end
-	slot.frame:Show()
+
+	if not InCombatLockdown() then
+		slot.frame:SetAttribute("unit", unit)
+		slot.frame:Show()
+	end
+
 	RenderRoleIcon(slot, GetUnitRole(unit))
 
 	-- Pass health and maxHealth directly to the C++ StatusBar widget methods.
@@ -762,10 +788,28 @@ local function UpdateTestSlot(slot, entry)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
 end
 
+ns.pendingRosterRefresh = false
+
 function ns.RefreshRoster()
 	if ns.testModeActive then
 		return -- test mode owns rendering until toggled off
 	end
+
+	if InCombatLockdown() then
+		ns.pendingRosterRefresh = true
+		if ns.debugSecure then
+			print("|cff33ff99[MistPanel Secure]|r InCombatLockdown active -> roster/attribute refresh deferred to PLAYER_REGEN_ENABLED")
+		end
+		-- Continue updating visual state for currently assigned slot units during combat
+		for i = 1, MAX_SLOTS do
+			if slots[i].unit then
+				UpdateSlot(slots[i], slots[i].unit)
+			end
+		end
+		return
+	end
+
+	ns.pendingRosterRefresh = false
 	ns.UpdateActiveHoTSpells()
 	local units = SortedRoster()
 	for i = 1, MAX_SLOTS do
@@ -773,18 +817,19 @@ function ns.RefreshRoster()
 	end
 	container:SetShown(#units > 0)
 
-	if ns.debugRoster then
-		print(string.format("|cff33ff99[MistPanel Roster]|r inGroup=%s inRaid=%s count=%d",
+	if ns.debugSecure then
+		print(string.format("|cff33ff99[MistPanel Secure]|r inGroup=%s inRaid=%s count=%d",
 			tostring(IsInGroup()), tostring(IsInRaid()), #units))
 		if not IsInGroup() then
 			print("  (Solo mode: panel hidden)")
 		else
 			for i = 1, MAX_SLOTS do
 				local u = slots[i].unit
+				local attrUnit = slots[i].frame:GetAttribute("unit")
 				if u and UnitExists(u) then
 					local name = UnitName(u) or "unknown"
 					local role = GetUnitRole(u)
-					print(string.format("  slot%d -> %s -> %s -> %s", i, u, role, name))
+					print(string.format("  slot%d -> unit=%s -> attrUnit=%s -> %s -> %s", i, u, tostring(attrUnit), role, name))
 				else
 					print(string.format("  slot%d -> (hidden)", i))
 				end
@@ -863,6 +908,7 @@ function ns.PrintStatus()
 	print("  debugHots: " .. tostring(ns.debugHots))
 	print("  debugRoster: " .. tostring(ns.debugRoster))
 	print("  debugThreat: " .. tostring(ns.debugThreat))
+	print("  debugSecure: " .. tostring(ns.debugSecure))
 end
 
 function ns.InitializePartyFrame()
@@ -882,6 +928,7 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 	watcher:RegisterEvent("ROLE_CHANGED_INFORM")
 	watcher:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
 	watcher:RegisterEvent("UNIT_CONNECTION")
 	watcher:RegisterEvent("UNIT_HEALTH")
 	watcher:RegisterEvent("UNIT_MAXHEALTH")
@@ -892,7 +939,11 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("PLAYER_TALENT_UPDATE")
 
 	watcher:SetScript("OnEvent", function(_, event, unit)
-		if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
+		if event == "PLAYER_REGEN_ENABLED" then
+			if ns.pendingRosterRefresh then
+				ns.RefreshRoster()
+			end
+		elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
 			ns.RefreshUnitState(unit)
 		elseif event == "UNIT_THREAT_LIST_UPDATE" then
 			for i = 1, MAX_SLOTS do
