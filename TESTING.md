@@ -1,107 +1,31 @@
-# Testing MistPanel (Phase 1)
+# Testing MistPanel (Phase 2)
 
-Phase 1 is the "party frame shell" only: a five-slot block, role
-ordering, a health bar, scale presets, lock/unlock + dragging, hide when
-solo, and optional auto-hiding of the default Blizzard party frames.
-There is **no** aggro/dispel/range/dead styling, **no** HoT bars, and
-**no** click-casting yet — those are later phases and are intentionally
-absent right now.
+Phase 2 adds **combat visual states**: red outer outline for aggro, pink outer outline for actionable dispel (taking priority over red), out-of-range dimming/desaturation, and dead heavy dimming/grey state. Dispel detection is talent-dependent at runtime (Detox for Magic; Improved Detox for Poison & Disease).
 
-A `/mistpanel test` developer test mode is included so most of this
-checklist can be done solo, without needing a real 4-person group — see
-section 2.1.
+There are **no** HoT bars yet (Phase 3) and **no** click-casting yet (Phase 4).
+
+A `/mistpanel test` developer test mode is included so most of this checklist can be done solo — see section 2.1.
 
 ## 1. Install / live-dev setup
 
-As of this change, `MistPanel.toc`, `Core.lua`, and `PartyFrame.lua`
-live directly at the **root of this git repository** — there is no
-`MistPanel/` subfolder anymore. This lets the repo working copy itself
-be the live AddOns folder: `git pull` + `/reload` instead of
-copying files by hand each time.
+`MistPanel.toc`, `Core.lua`, and `PartyFrame.lua` live directly at the root of `D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel`.
 
-**Important:** Claude Code runs this repo in a separate cloud
-environment, not on your Windows PC. Claude commits and pushes to
-GitHub; it cannot write directly into your local
-`D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel`. You still
-need to `git pull` there yourself after each push — this setup just
-removes the manual copy/download step, it doesn't make edits appear
-instantly on your machine.
-
-### One-time setup
-1. If `D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel`
-   already exists with files manually copied in from before (no `.git`
-   folder inside it), rename it aside as a backup, e.g. to
-   `MistPanel_manual_backup` — `git clone` needs an empty or
-   nonexistent target directory.
-2. Clone this repo directly into that exact path and branch:
-   ```
-   git clone -b claude/wow-addon-gdrive-github-rbrb6i https://github.com/stealthybadger-pixel/Wow-add-on- "D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel"
-   ```
-3. Confirm `MistPanel.toc` is directly at
-   `D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel\MistPanel.toc`
-   (not nested inside another `MistPanel\` folder).
-4. Fully restart WoW (or log in from character select — addon lists
-   are read at launch).
-5. At the character-select screen, open **AddOns** and confirm
-   "Mist Panel" is listed and enabled. Once confirmed working, the
-   `MistPanel_manual_backup` folder from step 1 can be deleted.
-
-### Day-to-day loop
-1. Claude edits files here and pushes to GitHub.
-2. On your PC, in that same folder: `git pull`.
-3. In WoW: `/reload`.
-4. Test, report back what you see.
-
-Note this folder will also contain the `WoW Addon/` documentation
-folder and this `TESTING.md` alongside the addon code, since the whole
-repo is now the addon folder. WoW only loads what `MistPanel.toc`
-lists, so the extra files are harmless — just unusual to see sitting in
-an AddOns folder.
-
-### If the addon refuses to load ("out of date")
-The `.toc` declares `## Interface: 120007`, a computed guess for Retail
-12.0.7 ("Midnight"). This number has **not** been confirmed against a
-live client. If WoW refuses to load the addon as out of date:
-1. Enable **Load out of date AddOns** in the AddOns list, or
-2. In-game, run `/dump select(4, GetBuildInfo())` to get your client's
-   real interface number, then edit the first line of `MistPanel.toc` to
-   match it exactly.
+After edits, test in-game with `/reload`.
 
 ## 2. What to verify in-game
 
-Log in on your Mistweaver Monk. Nothing installed here reads talents or
-class — role sorting works off `UnitGroupRolesAssigned`, so any class
-works for testing group behaviour.
+Log in on your Mistweaver Monk.
 
-### 2.1 Developer test mode (no group required)
-`/mistpanel test` toggles a simulated 5-player roster — Tank, Healer,
-DPS, DPS, DPS — rendered through the exact same slot frames, container,
-scale setting and saved position as a real party. It's the fastest way
-to iterate on the visual shell while solo:
-- `/mistpanel test` (while solo, out of a group) — the panel should
-  appear immediately with all 5 slots filled, even though you're solo
-  (test mode intentionally overrides "hide when solo").
-- Confirm role icons read Tank, Healer, DPS, DPS, DPS top to bottom.
-  (Role icons were previously missing in test mode - the icon technique
-  was switched to Blizzard's current role-icon atlas, the same one live
-  party/raid frames use. This still needs to be re-confirmed in-game.)
-- Confirm the 5 health bars show visibly different lengths/colors: the
-  simulated roster is seeded at 55% (tank), 100% (healer), 82%, 38%,
-  and 12% (the two DPS at the low end should read solidly red).
-- Confirm dragging (see 2.8), scale presets (see 2.9), and the
-  near-black background/role gutter/health-line layout all look correct
-  on the simulated frames — this is the same rendering code path real
-  frames use, so anything wrong here will also be wrong live.
-- `/mistpanel test` again — the panel should revert to your real,
-  live roster (or hide, if you're solo/not grouped).
-- While test mode is on, joining/leaving a group or taking real damage
-  should have **no effect** on the simulated display — it's frozen
-  until you toggle test mode off.
+### 2.1 Developer test mode (solo verification)
+`/mistpanel test` toggles a simulated 5-player roster that explicitly demonstrates all 5 core non-HoT visual states:
 
-Sections 2.2–2.7 below describe the live-group behaviour test mode
-can't substitute for (real roster composition, real health events, real
-raid detection) — worth doing at least once with an actual group, but
-not required for day-to-day shell iteration.
+- **Slot 1 (Tank)**: Aggro state — bright RED outer outline, 75% health line.
+- **Slot 2 (Healer)**: Normal state — dark border, 100% health line.
+- **Slot 3 (DPS 1)**: Actionable Dispel state — bright PINK outer outline. (Note: `aggro` is also set to true on this slot in test mode to verify that pink dispel priority overrides red aggro outline).
+- **Slot 4 (DPS 2)**: Out of Range state — frame opacity dimmed (0.45 alpha), role icon desaturated, 30% health line.
+- **Slot 5 (DPS 3)**: Dead state — heavily dimmed frame (0.35 alpha), role icon desaturated, 0% health line.
+
+Toggle `/mistpanel test` off to return to your live roster.
 
 ### 2.2 Hidden while solo
 - Solo, out of a group, with test mode **off**: the panel should be

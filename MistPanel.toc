@@ -1,8 +1,8 @@
 ## Interface: 120007
-## Title: Mist Panel |cff888888(Phase 1 - party frame shell)|r
+## Title: Mist Panel |cff888888(Phase 2 - combat states)|r
 ## Notes: Personal Mistweaver Monk party panel. Placeholder addon name - final name is TBD per 01 - Product Vision.md.
 ## Author: stealthybadger
-## Version: 0.1.0-phase1
+## Version: 0.2.0-phase2
 ## SavedVariables: MistPanelDB
 
 Core.lua
