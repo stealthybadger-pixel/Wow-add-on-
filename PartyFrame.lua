@@ -1013,37 +1013,18 @@ end
 function ns.RefreshDangerIndicators()
 	if ns.testModeActive then return end
 
-	local anyActive = false
-
+	-- Modern Retail WoW secret-value restriction:
+	-- UnitIsUnit(hostileTarget, partyUnit) returns a secret boolean in tainted execution context.
+	-- Lua branching on secret booleans is forbidden by the WoW engine to prevent automated targeted prediction.
+	-- Therefore, live per-party-member slot prediction is safely disabled to prevent secret boolean crashes.
 	for i = 1, MAX_SLOTS do
 		local slot = slots[i]
-		if slot and slot.unit and UnitExists(slot.unit) then
-			local cast = GetHighestPriorityCastForSlot(slot.unit)
-			if cast then
-				local ok = false
-				if cast.icon then
-					ok = pcall(function()
-						slot.dangerIcon:SetTexture(cast.icon)
-					end)
-				end
-				if not ok then
-					slot.dangerIcon:SetTexture(136075) -- Static Fallback Icon: Interface\Icons\spell_shadow_shadowbolt
-				end
-				slot.dangerBar:SetMinMaxValues(0, 1)
-				slot.dangerBar:SetValue(1)
-				slot.dangerContainer:Show()
-				anyActive = true
-			else
-				slot.dangerContainer:Hide()
-			end
-		else
-			if slot and slot.dangerContainer then
-				slot.dangerContainer:Hide()
-			end
+		if slot and slot.dangerContainer then
+			slot.dangerContainer:Hide()
 		end
 	end
 
-	ns.hasActiveDangerCasts = anyActive
+	ns.hasActiveDangerCasts = false
 end
 
 local function UpdateHostileCastForUnit(unit, event)
@@ -1053,42 +1034,22 @@ local function UpdateHostileCastForUnit(unit, event)
 
 	if not castInfo then
 		if activeHostileCasts[unit] then
-			local oldSlot = activeHostileCasts[unit].matchedSlotUnit
 			activeHostileCasts[unit] = nil
 			if ns.debugDanger then
-				print(string.format("|cff33ff99[MistPanel Danger]|r cast ended on %s (cleared %s)", tostring(unit), tostring(oldSlot or "none")))
+				print(string.format("|cff33ff99[MistPanel Danger]|r cast ended on %s", tostring(unit)))
 			end
 			ns.RefreshDangerIndicators()
 		end
 		return
 	end
 
-	local targetToken = unit .. "target"
-	local matchedSlotUnit = nil
-	if UnitExists(targetToken) then
-		for i = 1, MAX_SLOTS do
-			local slot = slots[i]
-			if slot and slot.unit and UnitExists(slot.unit) then
-				if UnitIsUnit(targetToken, slot.unit) then
-					matchedSlotUnit = slot.unit
-					break
-				end
-			end
-		end
-	end
-
-	local castObj = {
+	activeHostileCasts[unit] = {
 		casterUnit = unit,
 		icon = castInfo.texture,
-		targetToken = targetToken,
-		matchedSlotUnit = matchedSlotUnit,
 	}
 
-	activeHostileCasts[unit] = castObj
-
 	if ns.debugDanger then
-		print(string.format("|cff33ff99[MistPanel Danger]|r %s cast active -> target %s -> slotUnit %s",
-			tostring(unit), tostring(targetToken), tostring(matchedSlotUnit or "none")))
+		print(string.format("|cff33ff99[MistPanel Danger]|r %s cast active (target relation restricted by Retail secret-value rules)", tostring(unit)))
 	end
 
 	ns.RefreshDangerIndicators()
@@ -1097,10 +1058,9 @@ end
 local function ClearHostileCastForUnit(unit)
 	if not unit then return end
 	if activeHostileCasts[unit] then
-		local oldSlot = activeHostileCasts[unit].matchedSlotUnit
 		activeHostileCasts[unit] = nil
 		if ns.debugDanger then
-			print(string.format("|cff33ff99[MistPanel Danger]|r cleared cast on %s (slotUnit %s)", tostring(unit), tostring(oldSlot or "none")))
+			print(string.format("|cff33ff99[MistPanel Danger]|r cleared cast on %s", tostring(unit)))
 		end
 		ns.RefreshDangerIndicators()
 	end
