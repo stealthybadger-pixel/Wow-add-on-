@@ -86,6 +86,10 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		ns.debugRoster = not ns.debugRoster
 		print("|cff33ff99MistPanel|r: Roster debug logging " .. (ns.debugRoster and "|cff00ff00ENABLED|r" or "|cffff0000DISABLED|r") .. ".")
 		ns.RefreshRoster()
+	elseif cmd == "debugthreat" or cmd == "threat" then
+		ns.debugThreat = not ns.debugThreat
+		print("|cff33ff99MistPanel|r: Threat debug logging " .. (ns.debugThreat and "|cff00ff00ENABLED|r" or "|cffff0000DISABLED|r") .. ".")
+		ns.RefreshRoster()
 	elseif cmd == "status" then
 		ns.PrintStatus()
 	else
@@ -96,6 +100,7 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		print("  /mistpanel test")
 		print("  /mistpanel debughots")
 		print("  /mistpanel debugroster")
+		print("  /mistpanel debugthreat")
 		print("  /mistpanel status")
 	end
 end

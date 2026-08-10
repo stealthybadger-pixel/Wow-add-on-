@@ -189,8 +189,20 @@ end
 local function UnitHasAggro(unit)
 	if not unit or not UnitExists(unit) then return false end
 	local status = UnitThreatSituation(unit)
-	if not status then return false end
-	return status > 0
+	if not status or type(status) ~= "number" then return false end
+
+	if ns.debugThreat then
+		print(string.format("|cff33ff99[MistPanel Threat]|r unit=%s status=%d %s",
+			tostring(unit), status, (status >= 2 and "|cffff0000[AGGRO]|r" or "[No Aggro]")))
+	end
+
+	-- In WoW Retail, UnitThreatSituation return values mean:
+	-- nil / 0: No threat / low threat (not tanking or targeted)
+	-- 1: High threat, but NOT targeted (about to pull aggro / DPS building threat)
+	-- 2: Insecurely tanking (being targeted by mob, but another unit has higher threat)
+	-- 3: Securely tanking (being targeted by mob and has highest threat)
+	-- Meaningful aggro requiring visual emphasis corresponds to being targeted by mobs (status >= 2).
+	return status >= 2
 end
 
 local function UnitIsInRange(unit)
@@ -728,6 +740,7 @@ function ns.PrintStatus()
 	print("  testMode: " .. tostring(ns.testModeActive))
 	print("  debugHots: " .. tostring(ns.debugHots))
 	print("  debugRoster: " .. tostring(ns.debugRoster))
+	print("  debugThreat: " .. tostring(ns.debugThreat))
 end
 
 function ns.InitializePartyFrame()
@@ -751,6 +764,7 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("UNIT_HEALTH")
 	watcher:RegisterEvent("UNIT_MAXHEALTH")
 	watcher:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE")
+	watcher:RegisterEvent("UNIT_THREAT_LIST_UPDATE")
 	watcher:RegisterEvent("UNIT_AURA")
 	watcher:RegisterEvent("UNIT_FLAGS")
 	watcher:RegisterEvent("PLAYER_TALENT_UPDATE")
@@ -758,6 +772,12 @@ function ns.InitializePartyFrame()
 	watcher:SetScript("OnEvent", function(_, event, unit)
 		if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
 			ns.RefreshUnitState(unit)
+		elseif event == "UNIT_THREAT_LIST_UPDATE" then
+			for i = 1, MAX_SLOTS do
+				if slots[i].unit then
+					ns.RefreshUnitState(slots[i].unit)
+				end
+			end
 		else
 			ns.RefreshRoster()
 		end
