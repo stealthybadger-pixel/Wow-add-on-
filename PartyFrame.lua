@@ -3,14 +3,15 @@ local ADDON_NAME, ns = ...
 -- Reference dimensions from 02 - Unit Frame Design.md section 2
 -- (200-220px wide, ~50px tall family, before scale presets are applied).
 local FRAME_WIDTH = 210
-local FRAME_HEIGHT = 48
+local FRAME_HEIGHT = 56
 local FRAME_GAP = 6
 local ROLE_COLUMN_WIDTH = 46
 local ROLE_ICON_SIZE = 20
 local HEALTH_BAR_HEIGHT = 5
 local MAX_SLOTS = 5
 local MAX_HOTS = 5
-local HOT_ICON_SIZE = 20
+local HOT_ICON_SIZE = 16
+local HOT_BAR_HEIGHT = 14
 
 local SCALE_VALUES = {
 	SMALL = 0.8,
@@ -151,18 +152,18 @@ local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Extended to demonstrate My HoT visual layout (icons, cooldown sweeps, stack counts):
--- Slot 1: Tank with 2 active HoTs (Renewing Mist, Enveloping Mist)
--- Slot 2: Healer with 1 active HoT (Renewing Mist)
--- Slot 3: DPS 1 with 3 active HoTs (Renewing Mist stacked x2, Enveloping Mist, Essence Font) + Pink Dispel
+-- Extended to demonstrate My HoT visual layout with thin vertical duration bars (EQ bars):
+-- Slot 1: Tank with 2 active HoTs (Renewing Mist at 100% / 20s, Enveloping Mist at 70% / 4.2s of 6s)
+-- Slot 2: Healer with 1 active HoT (Renewing Mist at 90% / 18s)
+-- Slot 3: DPS 1 with 3 active HoTs (Renewing Mist stacked x2 at 50%, Enveloping Mist at 40% / 2.4s, Essence Font at 70%) + Pink Dispel
 -- Slot 4: DPS 2 with 0 HoTs
--- Slot 5: DPS 3 with 1 nearly-expired HoT
+-- Slot 5: DPS 3 with 1 nearly-expired HoT (Renewing Mist at 10% / 2s of 20s)
 local TEST_ROSTER = {
 	{
 		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
 		hots = {
-			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 14 },
-			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4 },
+			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
+			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4.2 },
 		}
 	},
 	{
@@ -175,8 +176,8 @@ local TEST_ROSTER = {
 		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
-			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 3 },
-			{ spellId = 191840, icon = 136054, count = 1, duration = 8,  expirationTime = 5 },
+			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 2.4 },
+			{ spellId = 191840, icon = 136054, count = 1, duration = 8,  expirationTime = 5.6 },
 		}
 	},
 	{
@@ -186,7 +187,7 @@ local TEST_ROSTER = {
 	{
 		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
 		hots = {
-			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 1 },
+			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
 		}
 	},
 }
@@ -414,10 +415,10 @@ local function CreateSlot(index)
 	})
 	borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
 
-	-- Role Column (Left side - vertically centered role icon)
+	-- Role Column (Left side - vertically centered role icon in 56px tall frame)
 	local roleIcon = f:CreateTexture(nil, "ARTWORK")
 	roleIcon:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
-	roleIcon:SetPoint("CENTER", f, "TOPLEFT", ROLE_COLUMN_WIDTH / 2, -21)
+	roleIcon:SetPoint("CENTER", f, "TOPLEFT", ROLE_COLUMN_WIDTH / 2, -25)
 
 	-- Subtle vertical divider separating role column from main area
 	local divider = f:CreateTexture(nil, "ARTWORK")
@@ -426,14 +427,35 @@ local function CreateSlot(index)
 	divider:SetWidth(1)
 	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
-	-- Pre-created HoT icon frames pool in the main central area
+	-- Pre-created HoT icon frames pool with duration bar DIRECTLY ABOVE each 16x16 icon
 	local hotIcons = {}
 	local startX = ROLE_COLUMN_WIDTH + 6
-	local iconGap = 4
+	local iconGap = 5
 	for i = 1, MAX_HOTS do
+		local posX = startX + (i - 1) * (HOT_ICON_SIZE + iconGap)
+
+		-- Thin vertical duration bar (EQ bar) placed DIRECTLY ABOVE the HoT icon
+		local durationBar = CreateFrame("StatusBar", nil, f, "BackdropTemplate")
+		durationBar:SetSize(HOT_ICON_SIZE, HOT_BAR_HEIGHT)
+		durationBar:SetPoint("TOPLEFT", f, "TOPLEFT", posX, -10)
+		durationBar:SetOrientation("VERTICAL")
+		durationBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+		durationBar:SetStatusBarColor(0.1, 0.9, 0.1)
+		durationBar:EnableMouse(false)
+		durationBar:SetBackdrop({
+			edgeFile = "Interface\\Buttons\\WHITE8x8",
+			edgeSize = 1,
+		})
+		durationBar:SetBackdropBorderColor(0.1, 0.1, 0.1, 0.8)
+
+		local durationBarBg = durationBar:CreateTexture(nil, "BACKGROUND")
+		durationBarBg:SetAllPoints(durationBar)
+		durationBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
+
+		-- 16x16 HoT icon frame placed immediately BELOW the duration bar
 		local iconFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
 		iconFrame:SetSize(HOT_ICON_SIZE, HOT_ICON_SIZE)
-		iconFrame:SetPoint("TOPLEFT", f, "TOPLEFT", startX + (i - 1) * (HOT_ICON_SIZE + iconGap), -10)
+		iconFrame:SetPoint("TOPLEFT", durationBar, "BOTTOMLEFT", 0, -2)
 		iconFrame:EnableMouse(false)
 		iconFrame:SetBackdrop({
 			edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -451,17 +473,21 @@ local function CreateSlot(index)
 		cd:SetDrawEdge(false)
 		cd:SetSwipeColor(0, 0, 0, 0.7)
 		cd:EnableMouse(false)
+		cd:Hide()
 
 		local countText = iconFrame:CreateFontString(nil, "OVERLAY")
 		countText:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", 0, 0)
-		countText:SetFont(STANDARD_TEXT_FONT or "Fonts\\ARIALN.TTF", 9, "OUTLINE")
+		countText:SetFont(STANDARD_TEXT_FONT or "Fonts\\ARIALN.TTF", 8, "OUTLINE")
 		countText:SetTextColor(1, 1, 1, 1)
 
 		iconFrame.texture = tex
 		iconFrame.cooldown = cd
+		iconFrame.durationBar = durationBar
+		iconFrame.durationBarBg = durationBarBg
 		iconFrame.countText = countText
 
 		iconFrame:Hide()
+		durationBar:Hide()
 		hotIcons[i] = iconFrame
 	end
 
@@ -619,26 +645,33 @@ local function RenderHotIcons(slot, hots)
 	local now = GetTime()
 	for i = 1, MAX_HOTS do
 		local iconFrame = slot.hotIcons[i]
+		local durationBar = iconFrame.durationBar
 		local data = hots[i]
 		if data then
 			iconFrame.texture:SetTexture(data.icon)
 
-			-- Synthetic numbers in test mode are plain Lua numbers (safe for sweeps/counts)
+			-- Always hide numeric duration text / radial sweeps
+			if iconFrame.cooldown then
+				iconFrame.cooldown:Hide()
+			end
+
+			-- Render vertical duration bar placed directly above the HoT icon (drains TOP -> BOTTOM)
 			if ns.testModeActive then
 				local dur = data.duration or 0
 				local exp = data.expirationTime or 0
-				local start = 0
-				if exp < 100 then
-					start = now - math.max(0, dur - exp)
+				local remaining = 0
+				if exp <= dur then
+					remaining = exp
 				elseif exp > 0 and dur > 0 then
-					start = exp - dur
+					remaining = math.max(0, exp - now)
 				end
 
-				if dur > 0 and start > 0 then
-					iconFrame.cooldown:SetCooldown(start, dur)
-					iconFrame.cooldown:Show()
+				if dur > 0 and remaining > 0 then
+					durationBar:SetMinMaxValues(0, dur)
+					durationBar:SetValue(remaining)
+					durationBar:Show()
 				else
-					iconFrame.cooldown:Hide()
+					durationBar:Hide()
 				end
 
 				if data.count and data.count > 1 then
@@ -648,26 +681,28 @@ local function RenderHotIcons(slot, hots)
 					iconFrame.countText:Hide()
 				end
 			else
-				-- Live mode: Safely calculate radial cooldown sweep and stack count via pcall
-				local cooldownSet = false
+				-- Live mode: Safely calculate vertical duration bar height via pcall
+				local barSet = false
 				if data.aura then
 					pcall(function()
 						local exp = data.aura.expirationTime
 						local dur = data.aura.duration
 						if exp and dur and dur > 0 and exp > 0 then
-							local start = exp - dur
-							if start > 0 then
-								iconFrame.cooldown:SetCooldown(start, dur)
-								iconFrame.cooldown:Show()
-								cooldownSet = true
+							local remaining = exp - now
+							if remaining > 0 then
+								durationBar:SetMinMaxValues(0, dur)
+								durationBar:SetValue(math.max(0, math.min(dur, remaining)))
+								durationBar:Show()
+								barSet = true
 							end
 						end
 					end)
 				end
-				if not cooldownSet then
-					iconFrame.cooldown:Hide()
+				if not barSet then
+					durationBar:Hide()
 				end
 
+				-- Stack counts remain separate on BOTTOMRIGHT of icon
 				local countSet = false
 				if data.aura then
 					pcall(function()
@@ -687,6 +722,9 @@ local function RenderHotIcons(slot, hots)
 			iconFrame:Show()
 		else
 			iconFrame:Hide()
+			if durationBar then
+				durationBar:Hide()
+			end
 		end
 	end
 end
