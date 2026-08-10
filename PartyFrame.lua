@@ -34,51 +34,42 @@ local ROLE_ATLAS_MAP = {
 	DAMAGER = "roleicon-tiny-dps",
 }
 
--- Explicit spell ID lookup for player-cast healing-over-time effects
-local MY_HOT_SPELLS = {
+-- Explicit spell ID and static icon lookup for player-cast healing-over-time effects
+local TRACKED_HOTS = {
 	-- Mistweaver Monk
-	[119611] = true, -- Renewing Mist (main)
-	[274968] = true, -- Renewing Mist (variant/proc)
-	[124682] = true, -- Enveloping Mist
-	[115175] = true, -- Soothing Mist
-	[191840] = true, -- Essence Font (HoT)
-	[191837] = true, -- Essence Font (buff)
-	[325209] = true, -- Enveloping Breath
-	[406254] = true, -- Celestial Harmony
-	[388478] = true, -- Unison
-	[388193] = true, -- Chi Harmony
-	[116849] = true, -- Life Cocoon
+	{ spellId = 119611, icon = 136074 }, -- Renewing Mist (main)
+	{ spellId = 274968, icon = 136074 }, -- Renewing Mist (variant)
+	{ spellId = 124682, icon = 136035 }, -- Enveloping Mist
+	{ spellId = 115175, icon = 136098 }, -- Soothing Mist
+	{ spellId = 191840, icon = 136054 }, -- Essence Font (HoT)
+	{ spellId = 191837, icon = 136054 }, -- Essence Font (buff)
+	{ spellId = 325209, icon = 136035 }, -- Enveloping Breath
+	{ spellId = 406254, icon = 136074 }, -- Celestial Harmony
+	{ spellId = 388478, icon = 136074 }, -- Unison
+	{ spellId = 388193, icon = 136074 }, -- Chi Harmony
+	{ spellId = 116849, icon = 136089 }, -- Life Cocoon
 
 	-- Restoration Druid
-	[774]    = true, -- Rejuvenation
-	[8936]   = true, -- Regrowth
-	[33763]  = true, -- Lifebloom
-	[48438]  = true, -- Wild Growth
-	[155777] = true, -- Germination
-	[207386] = true, -- Spring Blossoms
-	[391888] = true, -- Adaptive Swarm
+	{ spellId = 774,    icon = 136081 }, -- Rejuvenation
+	{ spellId = 8936,   icon = 136085 }, -- Regrowth
+	{ spellId = 33763,  icon = 136042 }, -- Lifebloom
+	{ spellId = 48438,  icon = 136088 }, -- Wild Growth
 
 	-- Holy / Discipline Priest
-	[139]    = true, -- Renew
-	[77489]  = true, -- Echo of Light
-	[41635]  = true, -- Prayer of Mending
-	[194384] = true, -- Atonement
+	{ spellId = 139,    icon = 135939 }, -- Renew
+	{ spellId = 41635,  icon = 135944 }, -- Prayer of Mending
+	{ spellId = 194384, icon = 135980 }, -- Atonement
 
 	-- Holy Paladin
-	[200025] = true, -- Bestow Faith
-	[53563]  = true, -- Beacon of Light
-	[156910] = true, -- Beacon of Faith
+	{ spellId = 53563,  icon = 135880 }, -- Beacon of Light
 
 	-- Restoration Shaman
-	[61295]  = true, -- Riptide
-	[5394]   = true, -- Healing Stream Totem
-	[974]    = true, -- Earth Shield
+	{ spellId = 61295,  icon = 237566 }, -- Riptide
+	{ spellId = 974,    icon = 136089 }, -- Earth Shield
 
 	-- Preservation Evoker
-	[366155] = true, -- Reversion
-	[364343] = true, -- Echo
-	[355941] = true, -- Dream Breath
-	[373267] = true, -- Lifebind
+	{ spellId = 366155, icon = 4622478 }, -- Reversion
+	{ spellId = 355941, icon = 4622452 }, -- Dream Breath
 }
 
 -- Fixed colors for Phase 2 combat states
@@ -176,7 +167,7 @@ local function UnitHasDispellableAura(unit)
 		while true do
 			local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HARMFUL")
 			if not aura then break end
-			if aura.dispelType and dispellableTypes[aura.dispelType] then
+			if aura.dispelType and type(aura.dispelType) == "string" and dispellableTypes[aura.dispelType] then
 				return true
 			end
 			index = index + 1
@@ -186,7 +177,7 @@ local function UnitHasDispellableAura(unit)
 		while true do
 			local name, _, _, dispelType = UnitDebuff(unit, index)
 			if not name then break end
-			if dispelType and dispellableTypes[dispelType] then
+			if dispelType and type(dispelType) == "string" and dispellableTypes[dispelType] then
 				return true
 			end
 			index = index + 1
@@ -198,7 +189,8 @@ end
 local function UnitHasAggro(unit)
 	if not unit or not UnitExists(unit) then return false end
 	local status = UnitThreatSituation(unit)
-	return status and status > 0
+	if not status then return false end
+	return status > 0
 end
 
 local function UnitIsInRange(unit)
@@ -217,70 +209,30 @@ local function GetUnitPlayerHoTs(unit)
 	local hots = {}
 	if not unit or not UnitExists(unit) then return hots end
 
-	if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
-		local index = 1
-		while #hots < MAX_HOTS do
-			local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
-			if not aura then break end
+	-- Query player-cast aura directly by spell ID from Blizzard's C++ engine.
+	-- This avoids inspecting secret aura.sourceUnit, aura.spellId, or aura.isFromPlayer in Lua.
+	for _, info in ipairs(TRACKED_HOTS) do
+		if #hots >= MAX_HOTS then break end
 
-			local isMine = aura.isFromPlayerOrPet
-				or aura.isPlayerAura
-				or aura.isFromPlayer
-				or (aura.sourceUnit and UnitIsUnit(aura.sourceUnit, "player"))
-
-			if isMine then
-				if ns.debugHots then
-					if MY_HOT_SPELLS[aura.spellId] then
-						print(string.format("|cff33ff99[MistPanel HoT MATCH]|r unit=%s spellId=%s name=%s source=%s dur=%s",
-							tostring(unit), tostring(aura.spellId), tostring(aura.name or "unknown"), tostring(aura.sourceUnit), tostring(aura.duration)))
-					else
-						print(string.format("|cffff9933[MistPanel HoT UNRECOGNISED]|r unit=%s spellId=%s name=%s source=%s",
-							tostring(unit), tostring(aura.spellId), tostring(aura.name or "unknown"), tostring(aura.sourceUnit)))
-					end
-				end
-
-				if aura.spellId and MY_HOT_SPELLS[aura.spellId] then
-					table.insert(hots, {
-						spellId = aura.spellId,
-						icon = aura.icon,
-						count = aura.applications or aura.count or 0,
-						duration = aura.duration or 0,
-						expirationTime = aura.expirationTime or 0,
-					})
-				end
+		local aura
+		if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
+			aura = C_UnitAuras.GetPlayerAuraBySpellID(unit, info.spellId)
+		elseif C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName then
+			local spellName = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(info.spellId) and C_Spell.GetSpellInfo(info.spellId).name
+			if spellName then
+				aura = C_UnitAuras.GetAuraDataBySpellName(unit, spellName, "HELPFUL|PLAYER")
 			end
-			index = index + 1
 		end
-	elseif UnitBuff then
-		local index = 1
-		while #hots < MAX_HOTS do
-			local name, icon, count, _, duration, expirationTime, caster, _, _, spellId = UnitBuff(unit, index)
-			if not name then break end
 
-			local isMine = caster and UnitIsUnit(caster, "player")
-
-			if isMine then
-				if ns.debugHots then
-					if MY_HOT_SPELLS[spellId] then
-						print(string.format("|cff33ff99[MistPanel HoT MATCH]|r unit=%s spellId=%s name=%s dur=%s",
-							tostring(unit), tostring(spellId), tostring(name), tostring(duration)))
-					else
-						print(string.format("|cffff9933[MistPanel HoT UNRECOGNISED]|r unit=%s spellId=%s name=%s",
-							tostring(unit), tostring(spellId), tostring(name)))
-					end
-				end
-
-				if spellId and MY_HOT_SPELLS[spellId] then
-					table.insert(hots, {
-						spellId = spellId,
-						icon = icon,
-						count = count or 0,
-						duration = duration or 0,
-						expirationTime = expirationTime or 0,
-					})
-				end
+		if aura then
+			if ns.debugHots then
+				print(string.format("|cff33ff99[MistPanel HoT MATCH]|r unit=%s spellId=%d", tostring(unit), info.spellId))
 			end
-			index = index + 1
+
+			table.insert(hots, {
+				spellId = info.spellId,
+				icon = info.icon,
+			})
 		end
 	end
 
@@ -551,26 +503,33 @@ local function RenderHotIcons(slot, hots)
 		if data then
 			iconFrame.texture:SetTexture(data.icon)
 
-			local dur = data.duration or 0
-			local exp = data.expirationTime or 0
-			local start = 0
-			if ns.testModeActive and exp < 100 then
-				start = now - math.max(0, dur - exp)
-			elseif exp > 0 and dur > 0 then
-				start = exp - dur
-			end
+			-- Synthetic numbers in test mode are plain Lua numbers (safe for sweeps/counts)
+			if ns.testModeActive then
+				local dur = data.duration or 0
+				local exp = data.expirationTime or 0
+				local start = 0
+				if exp < 100 then
+					start = now - math.max(0, dur - exp)
+				elseif exp > 0 and dur > 0 then
+					start = exp - dur
+				end
 
-			if dur > 0 and start > 0 then
-				iconFrame.cooldown:SetCooldown(start, dur)
-				iconFrame.cooldown:Show()
+				if dur > 0 and start > 0 then
+					iconFrame.cooldown:SetCooldown(start, dur)
+					iconFrame.cooldown:Show()
+				else
+					iconFrame.cooldown:Hide()
+				end
+
+				if data.count and data.count > 1 then
+					iconFrame.countText:SetText(tostring(data.count))
+					iconFrame.countText:Show()
+				else
+					iconFrame.countText:Hide()
+				end
 			else
+				-- Live mode: Hide cooldown sweep and stack count to prevent secret value arithmetic/comparison crashes
 				iconFrame.cooldown:Hide()
-			end
-
-			if data.count and data.count > 1 then
-				iconFrame.countText:SetText(tostring(data.count))
-				iconFrame.countText:Show()
-			else
 				iconFrame.countText:Hide()
 			end
 
