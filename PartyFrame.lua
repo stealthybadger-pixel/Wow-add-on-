@@ -610,10 +610,24 @@ local function UpdateSlot(slot, unit)
 	end
 	slot.frame:Show()
 	RenderRoleIcon(slot, UnitGroupRolesAssigned(unit))
+
+	-- Pass health and maxHealth directly to the C++ StatusBar widget methods.
+	-- Modern Retail WoW unit health calls return secret values in tainted contexts,
+	-- so we must not perform Lua arithmetic (/), comparisons (>), or percentage math on them.
 	local maxHealth = UnitHealthMax(unit)
 	local health = UnitHealth(unit)
-	local frac = (maxHealth and maxHealth > 0) and (health / maxHealth) or 0
-	RenderHealthFraction(slot, frac)
+	if maxHealth and health then
+		slot.healthBar:SetMinMaxValues(0, maxHealth)
+		slot.healthBar:SetValue(health)
+	else
+		slot.healthBar:SetMinMaxValues(0, 1)
+		slot.healthBar:SetValue(1)
+	end
+	slot.healthBar:SetStatusBarColor(0.1, 0.9, 0.1)
+	if slot.healthBarBg then
+		slot.healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
+	end
+
 	RenderHotIcons(slot, GetUnitPlayerHoTs(unit))
 
 	local isDead = UnitIsDead(unit)
