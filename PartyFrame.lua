@@ -938,6 +938,19 @@ end
 -- rather than UnitGUID() which can be a secret string in tainted execution.
 local activeHostileCasts = {}
 
+local TOKEN_PRIORITY = {
+	boss1 = 1, boss2 = 1, boss3 = 1, boss4 = 1, boss5 = 1, boss6 = 1, boss7 = 1, boss8 = 1,
+	target = 2,
+	focus = 3,
+}
+
+local function GetTokenPriority(unit)
+	if unit and TOKEN_PRIORITY[unit] then
+		return TOKEN_PRIORITY[unit]
+	end
+	return 4 -- Default priority for nameplates (nameplate1..40)
+end
+
 local function GetHostileCasterTokens()
 	local tokens = { "boss1", "boss2", "boss3", "boss4", "boss5", "boss6", "boss7", "boss8", "target", "focus" }
 	for i = 1, 40 do
@@ -959,56 +972,37 @@ local function GetUnitCastOrChannelInfo(unit, event)
 	if not unit then return nil end
 
 	if event and (event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE") then
-		local name, text, texture, startTime, endTime, isTradeSkill, notInterruptible, spellID = UnitChannelInfo(unit)
-		if name and startTime and endTime then
-			return {
-				name = name,
-				texture = texture,
-				startTime = startTime,
-				endTime = endTime,
-				spellID = spellID,
-				isChannel = true,
-			}
+		local name, text, texture = UnitChannelInfo(unit)
+		if name ~= nil then
+			return { texture = texture }
 		end
 		return nil
 	end
 
-	local name, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible, spellID = UnitCastingInfo(unit)
-	if name and startTime and endTime then
-		return {
-			name = name,
-			texture = texture,
-			startTime = startTime,
-			endTime = endTime,
-			spellID = spellID,
-			isChannel = false,
-		}
+	local name, text, texture = UnitCastingInfo(unit)
+	if name ~= nil then
+		return { texture = texture }
 	end
 
 	-- Fallback check for channeled spells if event was generic (e.g. UNIT_TARGET or NAME_PLATE_UNIT_ADDED)
-	local cName, cText, cTexture, cStartTime, cEndTime, cIsTradeSkill, cNotInterruptible, cSpellID = UnitChannelInfo(unit)
-	if cName and cStartTime and cEndTime then
-		return {
-			name = cName,
-			texture = cTexture,
-			startTime = cStartTime,
-			endTime = cEndTime,
-			spellID = cSpellID,
-			isChannel = true,
-		}
+	local cName, cText, cTexture = UnitChannelInfo(unit)
+	if cName ~= nil then
+		return { texture = cTexture }
 	end
 
 	return nil
 end
 
-local function GetSoonestCastForSlot(slotUnit)
+local function GetHighestPriorityCastForSlot(slotUnit)
 	if not slotUnit then return nil end
-	local now = GetTime()
 	local bestCast = nil
+	local bestPriority = 999
 
-	for _, cast in pairs(activeHostileCasts) do
-		if cast.matchedSlotUnit == slotUnit and cast.endTime > now then
-			if not bestCast or cast.endTime < bestCast.endTime then
+	for unitToken, cast in pairs(activeHostileCasts) do
+		if cast.matchedSlotUnit == slotUnit then
+			local prio = GetTokenPriority(unitToken)
+			if prio < bestPriority then
+				bestPriority = prio
 				bestCast = cast
 			end
 		end
@@ -1019,19 +1013,24 @@ end
 function ns.RefreshDangerIndicators()
 	if ns.testModeActive then return end
 
-	local now = GetTime()
 	local anyActive = false
 
 	for i = 1, MAX_SLOTS do
 		local slot = slots[i]
 		if slot and slot.unit and UnitExists(slot.unit) then
-			local cast = GetSoonestCastForSlot(slot.unit)
+			local cast = GetHighestPriorityCastForSlot(slot.unit)
 			if cast then
-				slot.dangerIcon:SetTexture(cast.icon or 136075)
-				local elapsed = math.max(0, now - cast.startTime)
-				local dur = math.max(0.1, cast.duration)
-				slot.dangerBar:SetMinMaxValues(0, dur)
-				slot.dangerBar:SetValue(math.min(dur, elapsed))
+				local ok = false
+				if cast.icon then
+					ok = pcall(function()
+						slot.dangerIcon:SetTexture(cast.icon)
+					end)
+				end
+				if not ok then
+					slot.dangerIcon:SetTexture(136075) -- Static Fallback Icon: Interface\Icons\spell_shadow_shadowbolt
+				end
+				slot.dangerBar:SetMinMaxValues(0, 1)
+				slot.dangerBar:SetValue(1)
 				slot.dangerContainer:Show()
 				anyActive = true
 			else
@@ -1078,19 +1077,9 @@ local function UpdateHostileCastForUnit(unit, event)
 		end
 	end
 
-	local startSec = castInfo.startTime / 1000
-	local endSec = castInfo.endTime / 1000
-	local duration = math.max(0.1, endSec - startSec)
-
 	local castObj = {
 		casterUnit = unit,
-		spellID = castInfo.spellID,
-		spellName = castInfo.name,
 		icon = castInfo.texture,
-		startTime = startSec,
-		endTime = endSec,
-		duration = duration,
-		isChannel = castInfo.isChannel,
 		targetToken = targetToken,
 		matchedSlotUnit = matchedSlotUnit,
 	}
@@ -1098,8 +1087,8 @@ local function UpdateHostileCastForUnit(unit, event)
 	activeHostileCasts[unit] = castObj
 
 	if ns.debugDanger then
-		print(string.format("|cff33ff99[MistPanel Danger]|r %s cast %s -> target %s -> slotUnit %s",
-			tostring(unit), tostring(castInfo.name), tostring(targetToken), tostring(matchedSlotUnit or "none")))
+		print(string.format("|cff33ff99[MistPanel Danger]|r %s cast active -> target %s -> slotUnit %s",
+			tostring(unit), tostring(targetToken), tostring(matchedSlotUnit or "none")))
 	end
 
 	ns.RefreshDangerIndicators()
