@@ -1,23 +1,27 @@
-# Testing MistPanel (Phase 1)
+# Testing MistPanel (Phase 1 + Phase 2)
 
-Phase 1 is the "party frame shell" only: a five-slot block, role
-ordering, a health bar, scale presets, lock/unlock + dragging, hide when
-solo, and optional auto-hiding of the default Blizzard party frames.
-There is **no** aggro/dispel/range/dead styling, **no** HoT bars, and
-**no** click-casting yet — those are later phases and are intentionally
+Phase 1 is the party frame shell: a five-slot block, role ordering, a
+health bar, scale presets, lock/unlock + dragging, hide when solo, and
+optional auto-hiding of the default Blizzard party frames.
+
+Phase 2 adds the combat-state visual layer on top of that shell: a red
+outline for aggro, a pink outline (priority over red) for an actionable
+dispellable debuff, out-of-range dimming, and a heavier dead/grey dim.
+There is still **no** HoT duration bars, **no** click-casting, and **no**
+full configuration UI — those are later phases and are intentionally
 absent right now.
 
 A `/mistpanel test` developer test mode is included so most of this
 checklist can be done solo, without needing a real 4-person group — see
-section 2.1.
+section 2.1. Phase 2's combat states additionally benefit from testing
+in a solo-queueable **Follower Dungeon** — see section 2.6.
 
 ## 1. Install / live-dev setup
 
-As of this change, `MistPanel.toc`, `Core.lua`, and `PartyFrame.lua`
-live directly at the **root of this git repository** — there is no
-`MistPanel/` subfolder anymore. This lets the repo working copy itself
-be the live AddOns folder: `git pull` + `/reload` instead of
-copying files by hand each time.
+`MistPanel.toc`, `Core.lua`, and `PartyFrame.lua` live directly at the
+**root of this git repository** — there is no `MistPanel/` subfolder.
+This lets the repo working copy itself be the live AddOns folder:
+`git pull` + `/reload` instead of copying files by hand each time.
 
 **Important:** Claude Code runs this repo in a separate cloud
 environment, not on your Windows PC. Claude commits and pushes to
@@ -82,13 +86,20 @@ to iterate on the visual shell while solo:
   appear immediately with all 5 slots filled, even though you're solo
   (test mode intentionally overrides "hide when solo").
 - Confirm role icons read Tank, Healer, DPS, DPS, DPS top to bottom.
-  (Role icons were previously missing in test mode - the icon technique
-  was switched to Blizzard's current role-icon atlas, the same one live
-  party/raid frames use. This still needs to be re-confirmed in-game.)
-- Confirm the 5 health bars show visibly different lengths/colors: the
-  simulated roster is seeded at 55% (tank), 100% (healer), 82%, 38%,
-  and 12% (the two DPS at the low end should read solidly red).
-- Confirm dragging (see 2.8), scale presets (see 2.9), and the
+- Confirm the 5 health bars show visibly different lengths/colors: 55%
+  (tank), 100% (healer), 82%, 38%, and 0% (the last DPS, since it's also
+  demonstrating "dead").
+- **Phase 2: confirm each slot demonstrates a distinct combat state:**
+  1. **Tank** — red outer outline (aggro), full brightness.
+  2. **Healer** — no outline, full brightness (normal/idle state — this
+     is what every frame should look like with nothing active).
+  3. **DPS (3rd slot)** — pink outer outline (dispellable debuff). Pink
+     should look clearly different from the tank's red.
+  4. **DPS (4th slot)** — no outline, but visibly dimmed (out of range).
+  5. **DPS (5th slot)** — no outline, dimmed more heavily than the
+     out-of-range slot (dead) — the two dim levels should be
+     distinguishable from each other at a glance.
+- Confirm dragging (see 2.9), scale presets (see 2.10), and the
   near-black background/role gutter/health-line layout all look correct
   on the simulated frames — this is the same rendering code path real
   frames use, so anything wrong here will also be wrong live.
@@ -98,10 +109,11 @@ to iterate on the visual shell while solo:
   should have **no effect** on the simulated display — it's frozen
   until you toggle test mode off.
 
-Sections 2.2–2.7 below describe the live-group behaviour test mode
-can't substitute for (real roster composition, real health events, real
-raid detection) — worth doing at least once with an actual group, but
-not required for day-to-day shell iteration.
+Sections 2.2–2.5 below describe live-group behaviour test mode can't
+substitute for (real roster composition, real health events). Section
+2.6 covers the Phase 2 combat states specifically — these are simulated
+(not API-driven) in test mode, so they need real verification. Sections
+2.7 onward cover the rest of the Phase 1 checklist.
 
 ### 2.2 Hidden while solo
 - Solo, out of a group, with test mode **off**: the panel should be
@@ -134,23 +146,68 @@ not required for day-to-day shell iteration.
   moment (not a rainbow gradient across the bar's own width).
 - Heal back up and confirm the bar grows back out to the right and the
   color shifts back toward green.
-- (Test mode's fixed 55/100/82/38/12% spread already exercises the
-  color range without needing live damage — this step is about
-  confirming real `UNIT_HEALTH` events drive the same visuals.)
+- (Test mode's fixed health spread already exercises the color range
+  without needing live damage — this step is about confirming real
+  `UNIT_HEALTH` events drive the same visuals.)
 
-### 2.6 Full 5-player group
+### 2.6 Combat states (Phase 2 — real group or Follower Dungeon)
+Test mode's 5 combat states (2.1) are simulated flags, not live API
+calls — they only prove the rendering code works, not that aggro/dispel/
+range/death detection actually works against real game state. This
+section needs either a real group or a solo-queueable **Follower
+Dungeon** (Group Finder → Follower Dungeon — fills the rest of the party
+with NPCs, queueable alone, real threat/aggro/damage/death happen).
+
+- **Aggro (red outline):** Pull a pack with the follower tank (or a real
+  tank) in the group. Confirm the tank's frame gets a red outline while
+  actively tanking. Let threat build on a DPS/yourself instead (e.g. by
+  healing/attacking before the tank has threat) and confirm the outline
+  moves to whoever currently has aggro. Aggro should update promptly,
+  not lag noticeably behind what you'd see on the tank's own threat
+  plates/warnings.
+- **Dispel (pink outline, priority over red):** Get a Magic/Poison/
+  Disease debuff on a party member (many dungeon mobs apply these) and
+  confirm a pink outline appears on that unit. If that unit *also* has
+  aggro, confirm the outline is pink, not red. When the debuff expires
+  or is cleansed, confirm the outline reverts immediately (back to red
+  if aggro is still active, or to no outline otherwise).
+  - If you have **Improved Detox** (or whatever the current talent that
+    extends Detox to Poison/Disease is named) talented: confirm Poison/
+    Disease debuffs light up pink. If you do **not** have it talented:
+    confirm Poison/Disease debuffs do **not** light up pink (only Magic
+    should). This distinction is the main thing to verify — the
+    detection method (reading Detox's own tooltip text) is unverified
+    and could be silently wrong in either direction.
+  - If pink never appears even on a plain Magic debuff you should be
+    able to dispel, or it appears when you shouldn't be able to dispel
+    something, report the exact debuff and your current talent
+    build.
+- **Out of range (dim):** Move far enough from a party member that
+  you'd be unable to heal them, and confirm their frame dims noticeably
+  (but doesn't get a colored outline). Move back in range and confirm
+  it returns to full brightness. Note it may take up to ~0.5s to update
+  (it's polled, not event-driven).
+- **Dead (heavier dim):** Let a party member (or yourself) die, and
+  confirm their frame dims more heavily than the out-of-range state —
+  the two should be visually distinguishable. Confirm it clears back to
+  normal on a battle-rez or release+revive.
+- **General:** Watch for Lua errors throughout, and note whether aggro/
+  dispel state ever seems "stuck" (not updating when it obviously
+  should have changed).
+
+### 2.7 Full 5-player group
 - If possible, get a full 5-player dungeon group (queue for anything,
-  even a low-level dungeon). Confirm all 5 frames render correctly and
-  role ordering is Tank → Healer → DPS → DPS → DPS.
+  even a low-level dungeon, or a Follower Dungeon). Confirm all 5 frames
+  render correctly and role ordering is Tank → Healer → DPS → DPS → DPS.
 
-### 2.7 No raid mode
+### 2.8 No raid mode
 - Convert your party to a raid (or queue something that puts you in a
   raid group) and confirm the entire panel disappears while in a raid
   group, then reappears if you convert back to a party. (Test mode
   intentionally ignores this — it stays visible in a raid if toggled on,
   since it's meant to always show for shell inspection.)
 
-### 2.8 Lock / Unlock / drag / persistence
+### 2.9 Lock / Unlock / drag / persistence
 Can be done in test mode or with a live roster — dragging behaviour is
 identical either way, since it's the same container frame.
 - `/mistpanel unlock` — the panel should now be draggable; click and
@@ -162,7 +219,7 @@ identical either way, since it's the same container frame.
   itself does not persist across `/reload` — you'll need to run
   `/mistpanel test` again after reloading if you want it back.)
 
-### 2.9 Scale presets
+### 2.10 Scale presets
 Can be done in test mode or with a live roster.
 - `/mistpanel scale small`, `/mistpanel scale medium`,
   `/mistpanel scale large` — confirm the entire block (frame size,
@@ -170,7 +227,7 @@ Can be done in test mode or with a live roster.
   nothing looks stretched, misaligned, or clipped at any of the three
   sizes.
 
-### 2.10 Blizzard party frame auto-hide
+### 2.11 Blizzard party frame auto-hide
 Requires a real group — test mode does not affect Blizzard's own party
 frames.
 - With the default (`/mistpanel status` should show
@@ -187,15 +244,16 @@ frames.
   `/console scriptErrors 1`, or install a lightweight error-catcher
   addon (e.g. BugSack + BugGrabber) for a readable log instead of popups.
 
-### 2.11 General health check
+### 2.12 General health check
 - Watch for any Lua errors on login, on joining/leaving a group, on
   toggling test mode on/off, and during ordinary combat health-change
-  spam (a full dungeon pull is a good stress test).
+  spam (a full dungeon pull is a good stress test) — this is also the
+  best stress test for the new aggro/dispel/range/death polling.
 
 ## 3. Temporary test command
 
-Phase 1 has no settings UI yet (that's Phase 5), so a minimal
-`/mistpanel` slash command exists purely to exercise Phase 1 mechanics:
+Phase 1/2 have no settings UI yet (that's Phase 5), so a minimal
+`/mistpanel` slash command exists purely to exercise Phase 1/2 mechanics:
 
 ```
 /mistpanel lock
@@ -207,10 +265,11 @@ Phase 1 has no settings UI yet (that's Phase 5), so a minimal
 ```
 
 `/mistpanel test` toggles the simulated 5-player developer test mode
-described in section 2.1. This is scaffolding for testing, not a
-designed product feature — expect it to be superseded (likely by the
-real Test Mode described in 05 - Roadmap.md's Phase 5), not extended,
-once Phase 5 is implemented.
+described in section 2.1, now demonstrating all 5 Phase 1+2 states
+(Normal, Aggro, Dispellable, Out of range, Dead). This is scaffolding
+for testing, not a designed product feature — expect it to be
+superseded (likely by the real Test Mode described in
+05 - Roadmap.md's Phase 5), not extended, once Phase 5 is implemented.
 
 ## 4. What I could not verify without running the game
 
@@ -232,32 +291,48 @@ it has been confirmed against an actual running client:
   taint-free in this client**, including across mid-combat roster
   changes (disconnect/reconnect, mid-fight join). This was Phase 0's
   own flagged "needs in-game proof of concept" item and is still open.
-- **Role icon rendering.** Role icons were reported missing in test mode
-  in-game (no Lua error, just no icon). Real and test frames share the
-  exact same rendering function, so this almost certainly affected real
-  party frames too - it just hadn't been observed there yet. The likely
-  cause was the old technique (a raw `Interface\LFGFrame\...` texture
-  file + `GetTexCoordsForRoleSmallCircle`), which may no longer resolve
-  correctly on this client. The fix switches to Blizzard's current
-  small role-icon atlas (`roleicon-tiny-tank` / `-healer` / `-dps`) -
-  the same atlas the live default party/raid frames use - with the old
-  technique kept only as a fallback. This has not yet been re-verified
-  in-game; please confirm role icons now appear on both test-mode and
-  real frames.
+- **Role icon rendering.** Fixed in the previous round (switched to
+  Blizzard's `roleicon-tiny-*` atlas) — please reconfirm icons show on
+  both test-mode and real frames now.
+- **Aggro detection.** `UnitThreatSituation(unit)` returning any
+  non-zero value is treated as "has aggro," collapsing Blizzard's 0-3
+  threat-status scale to one binary red state. Whether this reads
+  correctly during real tanking/threat-pulling is unverified — see 2.6.
+- **The two threat event names**, `UNIT_THREAT_LIST_UPDATE` and
+  `UNIT_THREAT_SITUATION_UPDATE`. Registered defensively (wrapped in
+  `pcall`, so a bad name is silently skipped instead of breaking the
+  addon), but whether either actually exists/fires on this client, and
+  whether aggro updates feel responsive, is unverified.
+- **Dispel-type detection.** Rather than hard-code an unverified talent
+  spell ID, this reads Detox's own live tooltip text via
+  `C_Spell.GetSpellDescription(218164)` and checks whether it currently
+  mentions "Poison"/"Disease" (added only if so; Magic is always
+  included as Detox's baseline). Whether spell ID 218164 is actually
+  Detox on this client, and whether its description text updates the
+  way this assumes when Improved Detox (or its current-patch
+  equivalent) is talented, is entirely unverified — see 2.6.
+- **`UnitAura`'s classic tuple return** (`name, icon, count, dispelType,
+  ...`) is used for harmful-aura scanning instead of
+  `C_UnitAuras.GetAuraDataByIndex`'s table, since its 4th-position
+  `dispelType` has been stable for a long time and the newer table's
+  exact field name could not be confirmed without a live client. Still
+  unverified that `UnitAura` itself is fully functional on 12.0.7.
+- **Range/death polling.** A 0.5s timer re-checks `UnitInRange`/
+  `UnitIsDeadOrGhost` for all displayed real units. Whether 0.5s feels
+  responsive (vs. too slow or wastefully fast) is unverified.
 - **All visual/layout judgment calls**: whether 210x50px frames at the
-  three scale presets actually look right, whether 4px gaps read as
-  "small," whether the near-black background/border contrast is
-  legible against typical UI backgrounds, and whether the test-mode
-  55/100/82/38/12% health spread actually reads as a useful visual
-  range once rendered — the spec gives target numbers, not a rendered
-  reference, so these are only as correct as the numbers were followed.
+  three scale presets actually look right, whether the red/pink border
+  colors and the 0.55/0.35 alpha dim levels are legible and clearly
+  distinguishable against the near-black background, whether 4px gaps
+  read as "small" — the spec gives target numbers/colors, not a
+  rendered reference, so these are only as correct as the numbers were
+  followed.
 - **Drag/clamp feel and position persistence across relog**, in
   practice rather than in the stubbed logic test.
 - **Any runtime error that only manifests against real WoW frame/event
-  behavior** — the Lua smoke test (see repo `MistPanel/` — the stub
-  script itself isn't checked in) exercises every function path with
-  fake data, including the test-mode toggle, but it is not a substitute
-  for the real client.
+  behavior** — the Lua smoke test (not checked into this repo)
+  exercises every function path with fake data, including test mode and
+  all 4 combat states, but it is not a substitute for the real client.
 
 Please report back anything in this list that fails, along with any
-Lua error text, so it can be fixed before Phase 2 starts.
+Lua error text, so it can be fixed before Phase 3 starts.

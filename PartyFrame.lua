@@ -33,16 +33,91 @@ local ROLE_ATLAS = {
 }
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Uses the same 5-slot Tank/Healer/DPS/DPS/DPS shape as a real group, with
--- varied health percentages so the health-line behaviour across the full
--- green-to-red range can be inspected without a live party.
+-- Uses the same 5-slot Tank/Healer/DPS/DPS/DPS shape as a real group.
+-- Phase 2: each slot also demonstrates one of the 5 combat states
+-- (Normal, Aggro, Dispellable, Out of range, Dead) requested for testing.
 local TEST_ROSTER = {
-	{ role = "TANK", healthPct = 0.55 },
+	{ role = "TANK", healthPct = 0.55, aggro = true },
 	{ role = "HEALER", healthPct = 1.00 },
-	{ role = "DAMAGER", healthPct = 0.82 },
-	{ role = "DAMAGER", healthPct = 0.38 },
-	{ role = "DAMAGER", healthPct = 0.12 },
+	{ role = "DAMAGER", healthPct = 0.82, dispellable = true },
+	{ role = "DAMAGER", healthPct = 0.38, outOfRange = true },
+	{ role = "DAMAGER", healthPct = 0.00, dead = true },
 }
+
+-- Phase 2 combat-state visuals (05 - Roadmap.md Phase 2 / 02 - Unit Frame
+-- Design.md sections 7-9). Border color communicates aggro/dispel; frame
+-- alpha communicates range/death. Idle border matches the neutral Phase 1
+-- edge color so nothing changes visually until a state is actually active.
+local COLOR_BORDER_IDLE = { 0.12, 0.12, 0.12, 1 }
+local COLOR_BORDER_AGGRO = { 0.85, 0.10, 0.10, 1 }
+local COLOR_BORDER_DISPEL = { 0.95, 0.35, 0.75, 1 }
+local ALPHA_NORMAL = 1
+local ALPHA_OUT_OF_RANGE = 0.55
+local ALPHA_DEAD = 0.35
+
+-- Detox is the Mistweaver's only dispel spell, so identifying it isn't
+-- "hard-coding a dispel-type set" - it's a fixed fact of this addon's
+-- Mistweaver-only scope. Its unconditional baseline is Magic-type effects
+-- (PHASE_0_FEASIBILITY.md section 4). The talent that extends this to also
+-- cover Poison/Disease is detected live rather than assumed: rather than
+-- guess an unverified talent spell ID, this reads Detox's own current
+-- (talent-updated) tooltip text via C_Spell.GetSpellDescription and checks
+-- whether it now mentions Poison/Disease. Falls back to Magic-only if the
+-- API is unavailable or the description can't be read. Unverified against
+-- a live client - see TESTING.md.
+local DETOX_SPELL_ID = 218164
+
+local function GetDispellableTypes()
+	local types = { Magic = true }
+	if C_Spell and C_Spell.GetSpellDescription then
+		local ok, description = pcall(C_Spell.GetSpellDescription, DETOX_SPELL_ID)
+		if ok and type(description) == "string" then
+			if description:find("Poison") then
+				types.Poison = true
+			end
+			if description:find("Disease") then
+				types.Disease = true
+			end
+		end
+	end
+	return types
+end
+
+local function HasAggro(unit)
+	local status = UnitThreatSituation(unit)
+	return status ~= nil and status > 0
+end
+
+-- Scans the unit's harmful auras for one whose dispelType is currently
+-- dispellable. Uses the classic UnitAura tuple return (rather than
+-- C_UnitAuras.GetAuraDataByIndex's table) since its argument order/shape
+-- has been stable for a very long time and is lower-risk to rely on
+-- without a live client to verify field names against.
+local function HasDispellableDebuff(unit, dispellable)
+	local ok, result = pcall(function()
+		for i = 1, 40 do
+			local name, _, _, dispelType = UnitAura(unit, i, "HARMFUL")
+			if not name then
+				return false
+			end
+			if dispelType and dispellable[dispelType] then
+				return true
+			end
+		end
+		return false
+	end)
+	return ok and result or false
+end
+
+local function ComputeUnitCombatState(unit)
+	local inRange, checkedRange = UnitInRange(unit)
+	return {
+		aggro = HasAggro(unit),
+		dispellable = HasDispellableDebuff(unit, GetDispellableTypes()),
+		dead = UnitIsDeadOrGhost(unit) and true or false,
+		outOfRange = checkedRange and not inRange,
+	}
+end
 
 local container
 local slots = {}
@@ -192,6 +267,27 @@ local function RenderHealthFraction(slot, frac)
 	slot.healthBar:SetStatusBarColor(GetHealthColor(frac))
 end
 
+-- Pink dispel outline takes priority over red aggro (02 - Unit Frame
+-- Design.md section 8). Dead takes priority over out-of-range dimming,
+-- since a dead unit is the more extreme/encompassing state.
+local function RenderCombatState(slot, state)
+	if state.dispellable then
+		slot.frame:SetBackdropBorderColor(unpack(COLOR_BORDER_DISPEL))
+	elseif state.aggro then
+		slot.frame:SetBackdropBorderColor(unpack(COLOR_BORDER_AGGRO))
+	else
+		slot.frame:SetBackdropBorderColor(unpack(COLOR_BORDER_IDLE))
+	end
+
+	if state.dead then
+		slot.frame:SetAlpha(ALPHA_DEAD)
+	elseif state.outOfRange then
+		slot.frame:SetAlpha(ALPHA_OUT_OF_RANGE)
+	else
+		slot.frame:SetAlpha(ALPHA_NORMAL)
+	end
+end
+
 local function UpdateSlot(slot, unit)
 	slot.unit = unit
 	if not unit then
@@ -204,6 +300,7 @@ local function UpdateSlot(slot, unit)
 	local health = UnitHealth(unit)
 	local frac = (maxHealth and maxHealth > 0) and (health / maxHealth) or 0
 	RenderHealthFraction(slot, frac)
+	RenderCombatState(slot, ComputeUnitCombatState(unit))
 end
 
 local function UpdateTestSlot(slot, entry)
@@ -215,6 +312,12 @@ local function UpdateTestSlot(slot, entry)
 	slot.frame:Show()
 	RenderRoleIcon(slot, entry.role)
 	RenderHealthFraction(slot, entry.healthPct)
+	RenderCombatState(slot, {
+		aggro = entry.aggro or false,
+		dispellable = entry.dispellable or false,
+		dead = entry.dead or false,
+		outOfRange = entry.outOfRange or false,
+	})
 end
 
 function ns.RefreshRoster()
@@ -236,6 +339,35 @@ function ns.RefreshUnitHealth(unit)
 		if slots[i].unit == unit then
 			UpdateSlot(slots[i], unit)
 			return
+		end
+	end
+end
+
+-- Aggro/dispel changes only need the combat-state visuals recomputed, not
+-- a full role/health re-render.
+function ns.RefreshUnitCombatState(unit)
+	if ns.testModeActive then
+		return
+	end
+	for i = 1, MAX_SLOTS do
+		if slots[i].unit == unit then
+			RenderCombatState(slots[i], ComputeUnitCombatState(unit))
+			return
+		end
+	end
+end
+
+-- Range and death have no reliable per-unit "changed" event, so this is
+-- polled on a short timer (see InitializePartyFrame) rather than driven
+-- purely by events, matching common addon practice for range checks.
+function ns.RefreshAllCombatStates()
+	if ns.testModeActive then
+		return
+	end
+	for i = 1, MAX_SLOTS do
+		local unit = slots[i].unit
+		if unit then
+			RenderCombatState(slots[i], ComputeUnitCombatState(unit))
 		end
 	end
 end
@@ -316,13 +448,27 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 	watcher:RegisterEvent("UNIT_HEALTH")
 	watcher:RegisterEvent("UNIT_MAXHEALTH")
+	watcher:RegisterEvent("UNIT_AURA")
+	-- Event names for per-unit threat changes; wrapped defensively since
+	-- their exact availability on this client is unverified (see TESTING.md).
+	-- An unknown event name errors on RegisterEvent, so pcall keeps a bad
+	-- name from breaking the rest of initialization.
+	pcall(watcher.RegisterEvent, watcher, "UNIT_THREAT_LIST_UPDATE")
+	pcall(watcher.RegisterEvent, watcher, "UNIT_THREAT_SITUATION_UPDATE")
 	watcher:SetScript("OnEvent", function(_, event, unit)
 		if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
 			ns.RefreshUnitHealth(unit)
+		elseif event == "UNIT_AURA" or event == "UNIT_THREAT_LIST_UPDATE" or event == "UNIT_THREAT_SITUATION_UPDATE" then
+			ns.RefreshUnitCombatState(unit)
 		else
 			ns.RefreshRoster()
 		end
 	end)
+
+	-- Range/death have no reliable change event, so poll them periodically.
+	if C_Timer and C_Timer.NewTicker then
+		C_Timer.NewTicker(0.5, ns.RefreshAllCombatStates)
+	end
 
 	ns.RefreshRoster()
 end
