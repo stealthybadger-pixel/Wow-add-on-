@@ -37,12 +37,17 @@ local ROLE_ATLAS_MAP = {
 -- Explicit spell ID lookup for player-cast healing-over-time effects
 local MY_HOT_SPELLS = {
 	-- Mistweaver Monk
-	[119611] = true, -- Renewing Mist
+	[119611] = true, -- Renewing Mist (main)
+	[274968] = true, -- Renewing Mist (variant/proc)
 	[124682] = true, -- Enveloping Mist
 	[115175] = true, -- Soothing Mist
-	[191840] = true, -- Essence Font
+	[191840] = true, -- Essence Font (HoT)
+	[191837] = true, -- Essence Font (buff)
 	[325209] = true, -- Enveloping Breath
 	[406254] = true, -- Celestial Harmony
+	[388478] = true, -- Unison
+	[388193] = true, -- Chi Harmony
+	[116849] = true, -- Life Cocoon
 
 	-- Restoration Druid
 	[774]    = true, -- Rejuvenation
@@ -125,6 +130,7 @@ local TEST_ROSTER = {
 local container
 local slots = {}
 ns.testModeActive = false
+ns.debugHots = false
 
 -- Dispel detection helper reflecting current runtime Mistweaver talent capability.
 -- Detox is base for Mistweaver (Magic). Improved Detox adds Poison and Disease.
@@ -219,14 +225,32 @@ local function GetUnitPlayerHoTs(unit)
 		while #hots < MAX_HOTS do
 			local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
 			if not aura then break end
-			if (aura.isFromPlayer or aura.sourceUnit == "player") and aura.spellId and MY_HOT_SPELLS[aura.spellId] then
-				table.insert(hots, {
-					spellId = aura.spellId,
-					icon = aura.icon,
-					count = aura.applications or aura.count or 0,
-					duration = aura.duration or 0,
-					expirationTime = aura.expirationTime or 0,
-				})
+
+			local isMine = aura.isFromPlayerOrPet
+				or aura.isPlayerAura
+				or aura.isFromPlayer
+				or (aura.sourceUnit and UnitIsUnit(aura.sourceUnit, "player"))
+
+			if isMine then
+				if ns.debugHots then
+					if MY_HOT_SPELLS[aura.spellId] then
+						print(string.format("|cff33ff99[MistPanel HoT MATCH]|r unit=%s spellId=%s name=%s source=%s dur=%s",
+							tostring(unit), tostring(aura.spellId), tostring(aura.name or "unknown"), tostring(aura.sourceUnit), tostring(aura.duration)))
+					else
+						print(string.format("|cffff9933[MistPanel HoT UNRECOGNISED]|r unit=%s spellId=%s name=%s source=%s",
+							tostring(unit), tostring(aura.spellId), tostring(aura.name or "unknown"), tostring(aura.sourceUnit)))
+					end
+				end
+
+				if aura.spellId and MY_HOT_SPELLS[aura.spellId] then
+					table.insert(hots, {
+						spellId = aura.spellId,
+						icon = aura.icon,
+						count = aura.applications or aura.count or 0,
+						duration = aura.duration or 0,
+						expirationTime = aura.expirationTime or 0,
+					})
+				end
 			end
 			index = index + 1
 		end
@@ -235,14 +259,29 @@ local function GetUnitPlayerHoTs(unit)
 		while #hots < MAX_HOTS do
 			local name, icon, count, _, duration, expirationTime, caster, _, _, spellId = UnitBuff(unit, index)
 			if not name then break end
-			if (caster == "player") and spellId and MY_HOT_SPELLS[spellId] then
-				table.insert(hots, {
-					spellId = spellId,
-					icon = icon,
-					count = count or 0,
-					duration = duration or 0,
-					expirationTime = expirationTime or 0,
-				})
+
+			local isMine = caster and UnitIsUnit(caster, "player")
+
+			if isMine then
+				if ns.debugHots then
+					if MY_HOT_SPELLS[spellId] then
+						print(string.format("|cff33ff99[MistPanel HoT MATCH]|r unit=%s spellId=%s name=%s dur=%s",
+							tostring(unit), tostring(spellId), tostring(name), tostring(duration)))
+					else
+						print(string.format("|cffff9933[MistPanel HoT UNRECOGNISED]|r unit=%s spellId=%s name=%s",
+							tostring(unit), tostring(spellId), tostring(name)))
+					end
+				end
+
+				if spellId and MY_HOT_SPELLS[spellId] then
+					table.insert(hots, {
+						spellId = spellId,
+						icon = icon,
+						count = count or 0,
+						duration = duration or 0,
+						expirationTime = expirationTime or 0,
+					})
+				end
 			end
 			index = index + 1
 		end
@@ -676,6 +715,7 @@ function ns.PrintStatus()
 	print("  hideBlizzardPartyFrames: " .. tostring(ns.db.hideBlizzardPartyFrames))
 	print("  in group (non-raid): " .. tostring(IsInGroup() and not IsInRaid()))
 	print("  testMode: " .. tostring(ns.testModeActive))
+	print("  debugHots: " .. tostring(ns.debugHots))
 end
 
 function ns.InitializePartyFrame()
