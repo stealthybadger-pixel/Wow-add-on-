@@ -934,6 +934,73 @@ local function UpdateSlot(slot, unit)
 	RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 end
 
+-- Active tracked hostile casts keyed by safe unit token string (e.g. "boss1", "nameplate3")
+-- rather than UnitGUID() which can be a secret string in tainted execution.
+local activeHostileCasts = {}
+
+local function GetHostileCasterTokens()
+	local tokens = { "boss1", "boss2", "boss3", "boss4", "boss5", "boss6", "boss7", "boss8", "target", "focus" }
+	for i = 1, 40 do
+		table.insert(tokens, "nameplate" .. i)
+	end
+	return tokens
+end
+
+local function IsHostileUnit(unit)
+	if not unit or not UnitExists(unit) then return false end
+	if UnitCanAttack("player", unit) or UnitIsEnemy("player", unit) then
+		return true
+	end
+	local reaction = UnitReaction("player", unit)
+	return reaction and reaction < 4
+end
+
+local function GetUnitCastOrChannelInfo(unit, event)
+	if not unit then return nil end
+
+	if event and (event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE") then
+		local name, text, texture, startTime, endTime, isTradeSkill, notInterruptible, spellID = UnitChannelInfo(unit)
+		if name and startTime and endTime then
+			return {
+				name = name,
+				texture = texture,
+				startTime = startTime,
+				endTime = endTime,
+				spellID = spellID,
+				isChannel = true,
+			}
+		end
+		return nil
+	end
+
+	local name, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible, spellID = UnitCastingInfo(unit)
+	if name and startTime and endTime then
+		return {
+			name = name,
+			texture = texture,
+			startTime = startTime,
+			endTime = endTime,
+			spellID = spellID,
+			isChannel = false,
+		}
+	end
+
+	-- Fallback check for channeled spells if event was generic (e.g. UNIT_TARGET or NAME_PLATE_UNIT_ADDED)
+	local cName, cText, cTexture, cStartTime, cEndTime, cIsTradeSkill, cNotInterruptible, cSpellID = UnitChannelInfo(unit)
+	if cName and cStartTime and cEndTime then
+		return {
+			name = cName,
+			texture = cTexture,
+			startTime = cStartTime,
+			endTime = cEndTime,
+			spellID = cSpellID,
+			isChannel = true,
+		}
+	end
+
+	return nil
+end
+
 local function GetSoonestCastForSlot(slotUnit)
 	if not slotUnit then return nil end
 	local now = GetTime()
@@ -980,26 +1047,17 @@ function ns.RefreshDangerIndicators()
 	ns.hasActiveDangerCasts = anyActive
 end
 
-local function UpdateHostileCastForUnit(unit)
+local function UpdateHostileCastForUnit(unit, event)
 	if not unit or not IsHostileUnit(unit) then return end
 
-	local casterGUID = UnitGUID(unit)
-	if not casterGUID then return end
+	local castInfo = GetUnitCastOrChannelInfo(unit, event)
 
-	local name, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible, spellID = UnitCastingInfo(unit)
-	local isChannel = false
-
-	if not name then
-		name, text, texture, startTime, endTime, isTradeSkill, notInterruptible, spellID = UnitChannelInfo(unit)
-		isChannel = true
-	end
-
-	if not name or not startTime or not endTime then
-		if activeHostileCasts[casterGUID] then
-			local oldSlot = activeHostileCasts[casterGUID].matchedSlotUnit
-			activeHostileCasts[casterGUID] = nil
+	if not castInfo then
+		if activeHostileCasts[unit] then
+			local oldSlot = activeHostileCasts[unit].matchedSlotUnit
+			activeHostileCasts[unit] = nil
 			if ns.debugDanger then
-				print(string.format("|cff33ff99[MistPanel Danger]|r cast ended on %s (cleared %s)", tostring(unit), tostring(oldSlot)))
+				print(string.format("|cff33ff99[MistPanel Danger]|r cast ended on %s (cleared %s)", tostring(unit), tostring(oldSlot or "none")))
 			end
 			ns.RefreshDangerIndicators()
 		end
@@ -1020,29 +1078,28 @@ local function UpdateHostileCastForUnit(unit)
 		end
 	end
 
-	local startSec = startTime / 1000
-	local endSec = endTime / 1000
+	local startSec = castInfo.startTime / 1000
+	local endSec = castInfo.endTime / 1000
 	local duration = math.max(0.1, endSec - startSec)
 
 	local castObj = {
-		casterGUID = casterGUID,
 		casterUnit = unit,
-		spellID = spellID,
-		spellName = name,
-		icon = texture,
+		spellID = castInfo.spellID,
+		spellName = castInfo.name,
+		icon = castInfo.texture,
 		startTime = startSec,
 		endTime = endSec,
 		duration = duration,
-		isChannel = isChannel,
+		isChannel = castInfo.isChannel,
 		targetToken = targetToken,
 		matchedSlotUnit = matchedSlotUnit,
 	}
 
-	activeHostileCasts[casterGUID] = castObj
+	activeHostileCasts[unit] = castObj
 
 	if ns.debugDanger then
 		print(string.format("|cff33ff99[MistPanel Danger]|r %s cast %s -> target %s -> slotUnit %s",
-			tostring(unit), tostring(name), tostring(targetToken), tostring(matchedSlotUnit or "none")))
+			tostring(unit), tostring(castInfo.name), tostring(targetToken), tostring(matchedSlotUnit or "none")))
 	end
 
 	ns.RefreshDangerIndicators()
@@ -1050,12 +1107,11 @@ end
 
 local function ClearHostileCastForUnit(unit)
 	if not unit then return end
-	local casterGUID = UnitGUID(unit)
-	if casterGUID and activeHostileCasts[casterGUID] then
-		local oldSlot = activeHostileCasts[casterGUID].matchedSlotUnit
-		activeHostileCasts[casterGUID] = nil
+	if activeHostileCasts[unit] then
+		local oldSlot = activeHostileCasts[unit].matchedSlotUnit
+		activeHostileCasts[unit] = nil
 		if ns.debugDanger then
-			print(string.format("|cff33ff99[MistPanel Danger]|r cleared cast on %s (slotUnit %s)", tostring(unit), tostring(oldSlot)))
+			print(string.format("|cff33ff99[MistPanel Danger]|r cleared cast on %s (slotUnit %s)", tostring(unit), tostring(oldSlot or "none")))
 		end
 		ns.RefreshDangerIndicators()
 	end
@@ -1066,6 +1122,10 @@ local function AuditAllHostileCasters()
 	for _, token in ipairs(tokens) do
 		if UnitExists(token) and IsHostileUnit(token) then
 			UpdateHostileCastForUnit(token)
+		else
+			if activeHostileCasts[token] then
+				activeHostileCasts[token] = nil
+			end
 		end
 	end
 end
