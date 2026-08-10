@@ -7,6 +7,10 @@ There is **no** aggro/dispel/range/dead styling, **no** HoT bars, and
 **no** click-casting yet — those are later phases and are intentionally
 absent right now.
 
+A `/mistpanel test` developer test mode is included so most of this
+checklist can be done solo, without needing a real 4-person group — see
+section 2.1.
+
 ## 1. Install
 
 1. Locate your WoW Retail AddOns folder, typically:
@@ -35,11 +39,38 @@ Log in on your Mistweaver Monk. Nothing installed here reads talents or
 class — role sorting works off `UnitGroupRolesAssigned`, so any class
 works for testing group behaviour.
 
-### 2.1 Hidden while solo
-- Solo, out of a group: the panel should be completely invisible
-  (no empty frames, no placeholder).
+### 2.1 Developer test mode (no group required)
+`/mistpanel test` toggles a simulated 5-player roster — Tank, Healer,
+DPS, DPS, DPS — rendered through the exact same slot frames, container,
+scale setting and saved position as a real party. It's the fastest way
+to iterate on the visual shell while solo:
+- `/mistpanel test` (while solo, out of a group) — the panel should
+  appear immediately with all 5 slots filled, even though you're solo
+  (test mode intentionally overrides "hide when solo").
+- Confirm role icons read Tank, Healer, DPS, DPS, DPS top to bottom.
+- Confirm the 5 health bars show visibly different lengths/colors: the
+  simulated roster is seeded at 55% (tank), 100% (healer), 82%, 38%,
+  and 12% (the two DPS at the low end should read solidly red).
+- Confirm dragging (see 2.8), scale presets (see 2.9), and the
+  near-black background/role gutter/health-line layout all look correct
+  on the simulated frames — this is the same rendering code path real
+  frames use, so anything wrong here will also be wrong live.
+- `/mistpanel test` again — the panel should revert to your real,
+  live roster (or hide, if you're solo/not grouped).
+- While test mode is on, joining/leaving a group or taking real damage
+  should have **no effect** on the simulated display — it's frozen
+  until you toggle test mode off.
 
-### 2.2 Basic group (2-4 players)
+Sections 2.2–2.7 below describe the live-group behaviour test mode
+can't substitute for (real roster composition, real health events, real
+raid detection) — worth doing at least once with an actual group, but
+not required for day-to-day shell iteration.
+
+### 2.2 Hidden while solo
+- Solo, out of a group, with test mode **off**: the panel should be
+  completely invisible (no empty frames, no placeholder).
+
+### 2.3 Basic group (2-4 players)
 - Group with at least one other player (an alt on a second account, a
   friend, or a low-level dungeon queue).
 - You should see one frame per real group member — not always 5 — near
@@ -50,14 +81,14 @@ works for testing group behaviour.
   member's actual assigned role).
 - Verify the healer/role icon on **your own** frame shows correctly.
 
-### 2.3 Role ordering
+### 2.4 Role ordering
 - With a tank, healer, and DPS all present, confirm the vertical order
   is Tank, then Healer (you, presumably), then DPS — top to bottom.
 - If two DPS are present, confirm their relative order doesn't visibly
   swap/jitter across normal roster updates (e.g. someone briefly
   disconnecting and reconnecting).
 
-### 2.4 Health bar behaviour
+### 2.5 Health bar behaviour
 - Take damage (or have a group member take damage) and confirm the thin
   bottom bar on that unit's frame shrinks from the **right edge toward
   the left** as health drops (left edge stays fixed).
@@ -66,34 +97,45 @@ works for testing group behaviour.
   moment (not a rainbow gradient across the bar's own width).
 - Heal back up and confirm the bar grows back out to the right and the
   color shifts back toward green.
+- (Test mode's fixed 55/100/82/38/12% spread already exercises the
+  color range without needing live damage — this step is about
+  confirming real `UNIT_HEALTH` events drive the same visuals.)
 
-### 2.5 Full 5-player group
+### 2.6 Full 5-player group
 - If possible, get a full 5-player dungeon group (queue for anything,
   even a low-level dungeon). Confirm all 5 frames render correctly and
   role ordering is Tank → Healer → DPS → DPS → DPS.
 
-### 2.6 No raid mode
+### 2.7 No raid mode
 - Convert your party to a raid (or queue something that puts you in a
   raid group) and confirm the entire panel disappears while in a raid
-  group, then reappears if you convert back to a party.
+  group, then reappears if you convert back to a party. (Test mode
+  intentionally ignores this — it stays visible in a raid if toggled on,
+  since it's meant to always show for shell inspection.)
 
-### 2.7 Lock / Unlock / drag / persistence
-Use the temporary Phase 1 test command (see note below):
+### 2.8 Lock / Unlock / drag / persistence
+Can be done in test mode or with a live roster — dragging behaviour is
+identical either way, since it's the same container frame.
 - `/mistpanel unlock` — the panel should now be draggable; click and
   drag anywhere on the block (including on top of a slot frame) and
   confirm it moves as a single unit, not frame-by-frame.
 - `/mistpanel lock` — confirm dragging no longer moves it.
 - While unlocked, move it somewhere, then `/reload` (or fully relog).
-  Confirm it reappears in the same position you left it.
+  Confirm it reappears in the same position you left it. (Test mode
+  itself does not persist across `/reload` — you'll need to run
+  `/mistpanel test` again after reloading if you want it back.)
 
-### 2.8 Scale presets
+### 2.9 Scale presets
+Can be done in test mode or with a live roster.
 - `/mistpanel scale small`, `/mistpanel scale medium`,
   `/mistpanel scale large` — confirm the entire block (frame size,
   health bar thickness, role icon size) scales proportionally, and that
   nothing looks stretched, misaligned, or clipped at any of the three
   sizes.
 
-### 2.9 Blizzard party frame auto-hide
+### 2.10 Blizzard party frame auto-hide
+Requires a real group — test mode does not affect Blizzard's own party
+frames.
 - With the default (`/mistpanel status` should show
   `hideBlizzardPartyFrames: true`), join a group and confirm Blizzard's
   own default party frames do **not** appear.
@@ -108,10 +150,10 @@ Use the temporary Phase 1 test command (see note below):
   `/console scriptErrors 1`, or install a lightweight error-catcher
   addon (e.g. BugSack + BugGrabber) for a readable log instead of popups.
 
-### 2.10 General health check
-- Watch for any Lua errors on login, on joining/leaving a group, and
-  during ordinary combat health-change spam (a full dungeon pull is a
-  good stress test).
+### 2.11 General health check
+- Watch for any Lua errors on login, on joining/leaving a group, on
+  toggling test mode on/off, and during ordinary combat health-change
+  spam (a full dungeon pull is a good stress test).
 
 ## 3. Temporary test command
 
@@ -123,12 +165,15 @@ Phase 1 has no settings UI yet (that's Phase 5), so a minimal
 /mistpanel unlock
 /mistpanel scale small|medium|large
 /mistpanel blizzframes on|off
+/mistpanel test
 /mistpanel status
 ```
 
-This is scaffolding for testing, not a designed feature — expect it to
-be replaced, not extended, once Phase 5 delivers the real configuration
-UI.
+`/mistpanel test` toggles the simulated 5-player developer test mode
+described in section 2.1. This is scaffolding for testing, not a
+designed product feature — expect it to be superseded (likely by the
+real Test Mode described in 05 - Roadmap.md's Phase 5), not extended,
+once Phase 5 is implemented.
 
 ## 4. What I could not verify without running the game
 
@@ -152,19 +197,23 @@ it has been confirmed against an actual running client:
   own flagged "needs in-game proof of concept" item and is still open.
 - **`GetTexCoordsForRoleSmallCircle` existing and rendering the correct
   icon.** The code degrades gracefully (hides the icon) if the function
-  is missing, but visual correctness when present is unverified.
+  is missing, but visual correctness when present is unverified. This
+  applies equally to the simulated test-mode frames, since they share
+  the same rendering code.
 - **All visual/layout judgment calls**: whether 210x50px frames at the
   three scale presets actually look right, whether 4px gaps read as
   "small," whether the near-black background/border contrast is
-  legible against typical UI backgrounds — the spec gives target
-  numbers, not a rendered reference, so these are only as correct as
-  the numbers were followed.
+  legible against typical UI backgrounds, and whether the test-mode
+  55/100/82/38/12% health spread actually reads as a useful visual
+  range once rendered — the spec gives target numbers, not a rendered
+  reference, so these are only as correct as the numbers were followed.
 - **Drag/clamp feel and position persistence across relog**, in
   practice rather than in the stubbed logic test.
 - **Any runtime error that only manifests against real WoW frame/event
   behavior** — the Lua smoke test (see repo `MistPanel/` — the stub
   script itself isn't checked in) exercises every function path with
-  fake data, but it is not a substitute for the real client.
+  fake data, including the test-mode toggle, but it is not a substitute
+  for the real client.
 
 Please report back anything in this list that fails, along with any
 Lua error text, so it can be fixed before Phase 2 starts.

@@ -69,6 +69,13 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		else
 			print("|cff33ff99MistPanel|r: usage /mistpanel blizzframes on|off")
 		end
+	elseif cmd == "test" then
+		ns.SetTestMode(not ns.testModeActive)
+		if ns.testModeActive then
+			print("|cff33ff99MistPanel|r: test mode ON - showing a simulated 5-player roster.")
+		else
+			print("|cff33ff99MistPanel|r: test mode OFF - showing your live roster again.")
+		end
 	elseif cmd == "status" then
 		ns.PrintStatus()
 	else
@@ -76,6 +83,7 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		print("  /mistpanel lock | unlock")
 		print("  /mistpanel scale small|medium|large")
 		print("  /mistpanel blizzframes on|off")
+		print("  /mistpanel test")
 		print("  /mistpanel status")
 	end
 end

@@ -24,8 +24,21 @@ local ROLE_PRIORITY = {
 
 local ROLE_ICON_TEXTURE = "Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES"
 
+-- Fixed simulated roster for "/mistpanel test" (developer test mode).
+-- Uses the same 5-slot Tank/Healer/DPS/DPS/DPS shape as a real group, with
+-- varied health percentages so the health-line behaviour across the full
+-- green-to-red range can be inspected without a live party.
+local TEST_ROSTER = {
+	{ role = "TANK", healthPct = 0.55 },
+	{ role = "HEALER", healthPct = 1.00 },
+	{ role = "DAMAGER", healthPct = 0.82 },
+	{ role = "DAMAGER", healthPct = 0.38 },
+	{ role = "DAMAGER", healthPct = 0.12 },
+}
+
 local container
 local slots = {}
+ns.testModeActive = false
 
 local function GetHealthColor(pct)
 	pct = math.max(0, math.min(1, pct or 0))
@@ -140,8 +153,10 @@ local function SortedRoster()
 	return units
 end
 
-local function UpdateRoleIcon(slot, unit)
-	local role = UnitGroupRolesAssigned(unit)
+-- Shared rendering: real party slots and the simulated test-mode slots both
+-- funnel through these two functions, so both use identical dimensions,
+-- spacing, role indicators, scale and positioning - only the data differs.
+local function RenderRoleIcon(slot, role)
 	if GetTexCoordsForRoleSmallCircle then
 		local l, r, t, b = GetTexCoordsForRoleSmallCircle(role)
 		if l then
@@ -153,15 +168,11 @@ local function UpdateRoleIcon(slot, unit)
 	slot.roleIcon:Hide()
 end
 
-local function UpdateHealth(slot, unit)
-	local maxHealth = UnitHealthMax(unit)
-	local health = UnitHealth(unit)
-	if not maxHealth or maxHealth <= 0 then
-		maxHealth, health = 1, 0
-	end
-	slot.healthBar:SetMinMaxValues(0, maxHealth)
-	slot.healthBar:SetValue(health)
-	slot.healthBar:SetStatusBarColor(GetHealthColor(health / maxHealth))
+local function RenderHealthFraction(slot, frac)
+	frac = math.max(0, math.min(1, frac or 0))
+	slot.healthBar:SetMinMaxValues(0, 1)
+	slot.healthBar:SetValue(frac)
+	slot.healthBar:SetStatusBarColor(GetHealthColor(frac))
 end
 
 local function UpdateSlot(slot, unit)
@@ -171,11 +182,28 @@ local function UpdateSlot(slot, unit)
 		return
 	end
 	slot.frame:Show()
-	UpdateRoleIcon(slot, unit)
-	UpdateHealth(slot, unit)
+	RenderRoleIcon(slot, UnitGroupRolesAssigned(unit))
+	local maxHealth = UnitHealthMax(unit)
+	local health = UnitHealth(unit)
+	local frac = (maxHealth and maxHealth > 0) and (health / maxHealth) or 0
+	RenderHealthFraction(slot, frac)
+end
+
+local function UpdateTestSlot(slot, entry)
+	slot.unit = nil -- not a real unit token; keeps live UNIT_HEALTH events from touching it
+	if not entry then
+		slot.frame:Hide()
+		return
+	end
+	slot.frame:Show()
+	RenderRoleIcon(slot, entry.role)
+	RenderHealthFraction(slot, entry.healthPct)
 end
 
 function ns.RefreshRoster()
+	if ns.testModeActive then
+		return -- test mode owns rendering until toggled off
+	end
 	local units = SortedRoster()
 	for i = 1, MAX_SLOTS do
 		UpdateSlot(slots[i], units[i])
@@ -184,11 +212,30 @@ function ns.RefreshRoster()
 end
 
 function ns.RefreshUnitHealth(unit)
+	if ns.testModeActive then
+		return
+	end
 	for i = 1, MAX_SLOTS do
 		if slots[i].unit == unit then
-			UpdateHealth(slots[i], unit)
+			UpdateSlot(slots[i], unit)
 			return
 		end
+	end
+end
+
+-- "/mistpanel test": simulated 5-player roster using the exact same slot
+-- frames/container as live play, so it can be inspected and iterated on
+-- while solo. Overrides hide-when-solo while active; live roster/health
+-- events are ignored until test mode is toggled back off.
+function ns.SetTestMode(enabled)
+	ns.testModeActive = enabled and true or false
+	if ns.testModeActive then
+		for i = 1, MAX_SLOTS do
+			UpdateTestSlot(slots[i], TEST_ROSTER[i])
+		end
+		container:Show()
+	else
+		ns.RefreshRoster()
 	end
 end
 
@@ -232,6 +279,7 @@ function ns.PrintStatus()
 	print("  scale: " .. tostring(ns.db.scale))
 	print("  hideBlizzardPartyFrames: " .. tostring(ns.db.hideBlizzardPartyFrames))
 	print("  in group (non-raid): " .. tostring(IsInGroup() and not IsInRaid()))
+	print("  testMode: " .. tostring(ns.testModeActive))
 end
 
 function ns.InitializePartyFrame()
