@@ -200,7 +200,7 @@ local function CreateSlot(index)
 	borderFrame:EnableMouse(false)
 	borderFrame:SetBackdrop({
 		edgeFile = "Interface\\Buttons\\WHITE8x8",
-		edgeSize = 2,
+		edgeSize = 1,
 	})
 	borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
 
@@ -216,17 +216,17 @@ local function CreateSlot(index)
 
 	-- Subtle vertical divider separating role column from empty main area
 	local divider = f:CreateTexture(nil, "ARTWORK")
-	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -2)
-	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 2)
+	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -1)
+	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 1)
 	divider:SetWidth(1)
 	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
-	-- Thin bottom health line: full-width inside the 2px border at full health,
-	-- retreats right to left as damage is taken. Anchored with a 2px inset so
+	-- Thin bottom health line: full-width inside the 1px border at full health,
+	-- retreats right to left as damage is taken. Anchored with a 1px inset so
 	-- it sits fully inside the outer border without overlapping or being covered.
 	local healthBar = CreateFrame("StatusBar", nil, f)
-	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 2, 2)
-	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
+	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
+	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
 	healthBar:SetHeight(HEALTH_BAR_HEIGHT)
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	healthBar:SetMinMaxValues(0, 1)
