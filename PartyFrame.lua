@@ -1315,3 +1315,27 @@ function ns.InitializePartyFrame()
 
 	ns.RefreshRoster()
 end
+
+function ns.RunPredictTest()
+	print("|cff33ff99[MistPanel PredictTest]|r Running isolated secret boolean C++ pass-through investigation...")
+	local testFrame = CreateFrame("Frame")
+
+	-- 1. Test UnitIsUnit secret boolean pass-through into Frame:SetShown()
+	local unitIsUnitVal = UnitIsUnit("targettarget", "player")
+	local setShownOk, setShownErr = pcall(function()
+		testFrame:SetShown(unitIsUnitVal)
+	end)
+
+	print(string.format("  Test 1: Frame:SetShown(UnitIsUnit('targettarget','player')) -> %s",
+		(setShownOk and "|cff00ff00PASSED|r (SetShown accepted value)" or "|cffff0000FAILED|r (" .. tostring(setShownErr) .. ")")))
+
+	-- 2. Test UnitIsUnit secret boolean pass-through into Frame:SetAlpha()
+	local setAlphaOk, setAlphaErr = pcall(function()
+		testFrame:SetAlpha(unitIsUnitVal and 1 or 0)
+	end)
+
+	print(string.format("  Test 2: Frame:SetAlpha(unitIsUnitVal) -> %s",
+		(setAlphaOk and "|cff00ff00PASSED|r" or "|cffff0000FAILED|r (" .. tostring(setAlphaErr) .. ")")))
+
+	print("|cff33ff99[MistPanel PredictTest]|r Investigation complete.")
+end
