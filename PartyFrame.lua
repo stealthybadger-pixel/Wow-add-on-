@@ -34,42 +34,42 @@ local ROLE_ATLAS_MAP = {
 	DAMAGER = "roleicon-tiny-dps",
 }
 
--- Explicit spell ID and static icon lookup for player-cast healing-over-time effects
+-- Explicit spell ID, static name, and static icon lookup for player-cast healing-over-time effects
 local TRACKED_HOTS = {
 	-- Mistweaver Monk
-	{ spellId = 119611, icon = 136074 }, -- Renewing Mist (main)
-	{ spellId = 274968, icon = 136074 }, -- Renewing Mist (variant)
-	{ spellId = 124682, icon = 136035 }, -- Enveloping Mist
-	{ spellId = 115175, icon = 136098 }, -- Soothing Mist
-	{ spellId = 191840, icon = 136054 }, -- Essence Font (HoT)
-	{ spellId = 191837, icon = 136054 }, -- Essence Font (buff)
-	{ spellId = 325209, icon = 136035 }, -- Enveloping Breath
-	{ spellId = 406254, icon = 136074 }, -- Celestial Harmony
-	{ spellId = 388478, icon = 136074 }, -- Unison
-	{ spellId = 388193, icon = 136074 }, -- Chi Harmony
-	{ spellId = 116849, icon = 136089 }, -- Life Cocoon
+	{ spellId = 119611, name = "Renewing Mist",          icon = 136074 },
+	{ spellId = 274968, name = "Renewing Mist (proc)",   icon = 136074 },
+	{ spellId = 124682, name = "Enveloping Mist",        icon = 136035 },
+	{ spellId = 115175, name = "Soothing Mist",          icon = 136098 },
+	{ spellId = 191840, name = "Essence Font (HoT)",     icon = 136054 },
+	{ spellId = 191837, name = "Essence Font (buff)",    icon = 136054 },
+	{ spellId = 325209, name = "Enveloping Breath",      icon = 136035 },
+	{ spellId = 406254, name = "Celestial Harmony",      icon = 136074 },
+	{ spellId = 388478, name = "Unison",                 icon = 136074 },
+	{ spellId = 388193, name = "Chi Harmony",            icon = 136074 },
+	{ spellId = 116849, name = "Life Cocoon",            icon = 136089 },
 
 	-- Restoration Druid
-	{ spellId = 774,    icon = 136081 }, -- Rejuvenation
-	{ spellId = 8936,   icon = 136085 }, -- Regrowth
-	{ spellId = 33763,  icon = 136042 }, -- Lifebloom
-	{ spellId = 48438,  icon = 136088 }, -- Wild Growth
+	{ spellId = 774,    name = "Rejuvenation",           icon = 136081 },
+	{ spellId = 8936,   name = "Regrowth",               icon = 136085 },
+	{ spellId = 33763,  name = "Lifebloom",              icon = 136042 },
+	{ spellId = 48438,  name = "Wild Growth",            icon = 136088 },
 
 	-- Holy / Discipline Priest
-	{ spellId = 139,    icon = 135939 }, -- Renew
-	{ spellId = 41635,  icon = 135944 }, -- Prayer of Mending
-	{ spellId = 194384, icon = 135980 }, -- Atonement
+	{ spellId = 139,    name = "Renew",                  icon = 135939 },
+	{ spellId = 41635,  name = "Prayer of Mending",      icon = 135944 },
+	{ spellId = 194384, name = "Atonement",              icon = 135980 },
 
 	-- Holy Paladin
-	{ spellId = 53563,  icon = 135880 }, -- Beacon of Light
+	{ spellId = 53563,  name = "Beacon of Light",        icon = 135880 },
 
 	-- Restoration Shaman
-	{ spellId = 61295,  icon = 237566 }, -- Riptide
-	{ spellId = 974,    icon = 136089 }, -- Earth Shield
+	{ spellId = 61295,  name = "Riptide",                icon = 237566 },
+	{ spellId = 974,    name = "Earth Shield",           icon = 136089 },
 
 	-- Preservation Evoker
-	{ spellId = 366155, icon = 4622478 }, -- Reversion
-	{ spellId = 355941, icon = 4622452 }, -- Dream Breath
+	{ spellId = 366155, name = "Reversion",              icon = 4622478 },
+	{ spellId = 355941, name = "Dream Breath",           icon = 4622452 },
 }
 
 -- Fixed colors for Phase 2 combat states
@@ -221,29 +221,45 @@ local function GetUnitPlayerHoTs(unit)
 	local hots = {}
 	if not unit or not UnitExists(unit) then return hots end
 
-	-- Query player-cast aura directly by spell ID from Blizzard's C++ engine.
-	-- This avoids inspecting secret aura.sourceUnit, aura.spellId, or aura.isFromPlayer in Lua.
+	-- Query player-cast aura directly by spell ID using Blizzard's HELPFUL|PLAYER engine filter.
 	for _, info in ipairs(TRACKED_HOTS) do
 		if #hots >= MAX_HOTS then break end
 
 		local aura
-		if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
-			aura = C_UnitAuras.GetPlayerAuraBySpellID(unit, info.spellId)
-		elseif C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName then
-			local spellName = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(info.spellId) and C_Spell.GetSpellInfo(info.spellId).name
-			if spellName then
-				aura = C_UnitAuras.GetAuraDataBySpellName(unit, spellName, "HELPFUL|PLAYER")
+		if AuraUtil and AuraUtil.FindAuraBySpellID then
+			aura = AuraUtil.FindAuraBySpellID(info.spellId, unit, "HELPFUL|PLAYER")
+		end
+
+		if not aura and C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+			local index = 1
+			while true do
+				local a = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL|PLAYER")
+				if not a then break end
+				local isMatch = false
+				pcall(function()
+					if a.spellId and a.spellId == info.spellId then
+						isMatch = true
+					end
+				end)
+				if isMatch then
+					aura = a
+					break
+				end
+				index = index + 1
 			end
 		end
 
-		if aura then
-			if ns.debugHots then
-				print(string.format("|cff33ff99[MistPanel HoT MATCH]|r unit=%s spellId=%d", tostring(unit), info.spellId))
-			end
+		if ns.debugHots then
+			print(string.format("|cff33ff99[MistPanel HoT]|r query %s (ID %d) on %s -> %s",
+				info.name, info.spellId, tostring(unit), (aura and "|cff00ff00FOUND|r" or "not found")))
+		end
 
+		if aura then
 			table.insert(hots, {
 				spellId = info.spellId,
 				icon = info.icon,
+				name = info.name,
+				aura = aura,
 			})
 		end
 	end
@@ -540,9 +556,40 @@ local function RenderHotIcons(slot, hots)
 					iconFrame.countText:Hide()
 				end
 			else
-				-- Live mode: Hide cooldown sweep and stack count to prevent secret value arithmetic/comparison crashes
-				iconFrame.cooldown:Hide()
-				iconFrame.countText:Hide()
+				-- Live mode: Safely calculate radial cooldown sweep and stack count via pcall
+				local cooldownSet = false
+				if data.aura then
+					pcall(function()
+						local exp = data.aura.expirationTime
+						local dur = data.aura.duration
+						if exp and dur and dur > 0 and exp > 0 then
+							local start = exp - dur
+							if start > 0 then
+								iconFrame.cooldown:SetCooldown(start, dur)
+								iconFrame.cooldown:Show()
+								cooldownSet = true
+							end
+						end
+					end)
+				end
+				if not cooldownSet then
+					iconFrame.cooldown:Hide()
+				end
+
+				local countSet = false
+				if data.aura then
+					pcall(function()
+						local count = data.aura.applications or data.aura.count
+						if count and count > 1 then
+							iconFrame.countText:SetText(tostring(count))
+							iconFrame.countText:Show()
+							countSet = true
+						end
+					end)
+				end
+				if not countSet then
+					iconFrame.countText:Hide()
+				end
 			end
 
 			iconFrame:Show()
