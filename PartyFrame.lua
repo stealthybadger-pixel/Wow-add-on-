@@ -9,6 +9,8 @@ local ROLE_COLUMN_WIDTH = 46
 local ROLE_ICON_SIZE = 20
 local HEALTH_BAR_HEIGHT = 5
 local MAX_SLOTS = 5
+local MAX_HOTS = 5
+local HOT_ICON_SIZE = 20
 
 local SCALE_VALUES = {
 	SMALL = 0.8,
@@ -32,10 +34,46 @@ local ROLE_ATLAS_MAP = {
 	DAMAGER = "roleicon-tiny-dps",
 }
 
-local ROLE_TEXT_MAP = {
-	TANK = "TANK",
-	HEALER = "HEALER",
-	DAMAGER = "DPS",
+-- Explicit spell ID lookup for player-cast healing-over-time effects
+local MY_HOT_SPELLS = {
+	-- Mistweaver Monk
+	[119611] = true, -- Renewing Mist
+	[124682] = true, -- Enveloping Mist
+	[115175] = true, -- Soothing Mist
+	[191840] = true, -- Essence Font
+	[325209] = true, -- Enveloping Breath
+	[406254] = true, -- Celestial Harmony
+
+	-- Restoration Druid
+	[774]    = true, -- Rejuvenation
+	[8936]   = true, -- Regrowth
+	[33763]  = true, -- Lifebloom
+	[48438]  = true, -- Wild Growth
+	[155777] = true, -- Germination
+	[207386] = true, -- Spring Blossoms
+	[391888] = true, -- Adaptive Swarm
+
+	-- Holy / Discipline Priest
+	[139]    = true, -- Renew
+	[77489]  = true, -- Echo of Light
+	[41635]  = true, -- Prayer of Mending
+	[194384] = true, -- Atonement
+
+	-- Holy Paladin
+	[200025] = true, -- Bestow Faith
+	[53563]  = true, -- Beacon of Light
+	[156910] = true, -- Beacon of Faith
+
+	-- Restoration Shaman
+	[61295]  = true, -- Riptide
+	[5394]   = true, -- Healing Stream Totem
+	[974]    = true, -- Earth Shield
+
+	-- Preservation Evoker
+	[366155] = true, -- Reversion
+	[364343] = true, -- Echo
+	[355941] = true, -- Dream Breath
+	[373267] = true, -- Lifebind
 }
 
 -- Fixed colors for Phase 2 combat states
@@ -44,18 +82,44 @@ local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Extended in Phase 2 to visibly demonstrate all 5 core non-HoT visual states matching mockup:
--- Slot 1: Aggro (Red outline + soft red glow)
--- Slot 2: Normal (Dark outline + faint shadow)
--- Slot 3: Dispellable (Pink outline + soft pink glow - also has aggro=true to test pink priority over red)
--- Slot 4: Damaged / Moderate health (Dark outline, orange health)
--- Slot 5: Low health / Out of Range or Dead demonstration
+-- Extended to demonstrate My HoT visual layout (icons, cooldown sweeps, stack counts):
+-- Slot 1: Tank with 2 active HoTs (Renewing Mist, Enveloping Mist)
+-- Slot 2: Healer with 1 active HoT (Renewing Mist)
+-- Slot 3: DPS 1 with 3 active HoTs (Renewing Mist stacked x2, Enveloping Mist, Essence Font) + Pink Dispel
+-- Slot 4: DPS 2 with 0 HoTs
+-- Slot 5: DPS 3 with 1 nearly-expired HoT
 local TEST_ROSTER = {
-	{ role = "TANK",    healthPct = 0.70, aggro = true,  dispel = false, inRange = true,  dead = false },
-	{ role = "HEALER",  healthPct = 1.00, aggro = false, dispel = false, inRange = true,  dead = false },
-	{ role = "DAMAGER", healthPct = 0.50, aggro = true,  dispel = true,  inRange = true,  dead = false },
-	{ role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true,  dead = false },
-	{ role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true,  dead = false },
+	{
+		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
+		hots = {
+			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 14 },
+			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4 },
+		}
+	},
+	{
+		role = "HEALER", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
+		hots = {
+			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
+		}
+	},
+	{
+		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
+		hots = {
+			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
+			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 3 },
+			{ spellId = 191840, icon = 136054, count = 1, duration = 8,  expirationTime = 5 },
+		}
+	},
+	{
+		role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
+		hots = {}
+	},
+	{
+		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
+		hots = {
+			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 1 },
+		}
+	},
 }
 
 local container
@@ -146,6 +210,47 @@ local function UnitIsDead(unit)
 	return UnitIsDeadOrGhost(unit) or not UnitIsConnected(unit)
 end
 
+local function GetUnitPlayerHoTs(unit)
+	local hots = {}
+	if not unit or not UnitExists(unit) then return hots end
+
+	if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+		local index = 1
+		while #hots < MAX_HOTS do
+			local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
+			if not aura then break end
+			if (aura.isFromPlayer or aura.sourceUnit == "player") and aura.spellId and MY_HOT_SPELLS[aura.spellId] then
+				table.insert(hots, {
+					spellId = aura.spellId,
+					icon = aura.icon,
+					count = aura.applications or aura.count or 0,
+					duration = aura.duration or 0,
+					expirationTime = aura.expirationTime or 0,
+				})
+			end
+			index = index + 1
+		end
+	elseif UnitBuff then
+		local index = 1
+		while #hots < MAX_HOTS do
+			local name, icon, count, _, duration, expirationTime, caster, _, _, spellId = UnitBuff(unit, index)
+			if not name then break end
+			if (caster == "player") and spellId and MY_HOT_SPELLS[spellId] then
+				table.insert(hots, {
+					spellId = spellId,
+					icon = icon,
+					count = count or 0,
+					duration = duration or 0,
+					expirationTime = expirationTime or 0,
+				})
+			end
+			index = index + 1
+		end
+	end
+
+	return hots
+end
+
 local function GetHealthColor(pct)
 	pct = math.max(0, math.min(1, pct or 0))
 	if pct > 0.5 then
@@ -204,26 +309,56 @@ local function CreateSlot(index)
 	})
 	borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
 
-	-- Role Column (Left side)
+	-- Role Column (Left side - vertically centered role icon)
 	local roleIcon = f:CreateTexture(nil, "ARTWORK")
 	roleIcon:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
-	roleIcon:SetPoint("TOP", f, "TOPLEFT", ROLE_COLUMN_WIDTH / 2, -5)
+	roleIcon:SetPoint("CENTER", f, "TOPLEFT", ROLE_COLUMN_WIDTH / 2, -21)
 
-	local roleText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	roleText:SetPoint("TOP", roleIcon, "BOTTOM", 0, -1)
-	roleText:SetFont(STANDARD_TEXT_FONT or "Fonts\\ARIALN.TTF", 9, "OUTLINE")
-	roleText:SetTextColor(0.85, 0.85, 0.85, 1.0)
-
-	-- Subtle vertical divider separating role column from empty main area
+	-- Subtle vertical divider separating role column from main area
 	local divider = f:CreateTexture(nil, "ARTWORK")
 	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -1)
 	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 1)
 	divider:SetWidth(1)
 	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
-	-- Thin bottom health line: full-width inside the 1px border at full health,
-	-- retreats right to left as damage is taken. Anchored with a 1px inset so
-	-- it sits fully inside the outer border without overlapping or being covered.
+	-- Pre-created HoT icon frames pool in the main central area
+	local hotIcons = {}
+	local startX = ROLE_COLUMN_WIDTH + 6
+	local iconGap = 4
+	for i = 1, MAX_HOTS do
+		local iconFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
+		iconFrame:SetSize(HOT_ICON_SIZE, HOT_ICON_SIZE)
+		iconFrame:SetPoint("TOPLEFT", f, "TOPLEFT", startX + (i - 1) * (HOT_ICON_SIZE + iconGap), -10)
+		iconFrame:SetBackdrop({
+			edgeFile = "Interface\\Buttons\\WHITE8x8",
+			edgeSize = 1,
+		})
+		iconFrame:SetBackdropBorderColor(0.1, 0.1, 0.1, 0.8)
+
+		local tex = iconFrame:CreateTexture(nil, "ARTWORK")
+		tex:SetAllPoints(iconFrame)
+		tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+		local cd = CreateFrame("Cooldown", nil, iconFrame, "CooldownFrameTemplate")
+		cd:SetAllPoints(iconFrame)
+		cd:SetReverse(true)
+		cd:SetDrawEdge(false)
+		cd:SetSwipeColor(0, 0, 0, 0.7)
+
+		local countText = iconFrame:CreateFontString(nil, "OVERLAY")
+		countText:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", 0, 0)
+		countText:SetFont(STANDARD_TEXT_FONT or "Fonts\\ARIALN.TTF", 9, "OUTLINE")
+		countText:SetTextColor(1, 1, 1, 1)
+
+		iconFrame.texture = tex
+		iconFrame.cooldown = cd
+		iconFrame.countText = countText
+
+		iconFrame:Hide()
+		hotIcons[i] = iconFrame
+	end
+
+	-- Thin bottom health line
 	local healthBar = CreateFrame("StatusBar", nil, f)
 	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
 	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
@@ -243,8 +378,8 @@ local function CreateSlot(index)
 		borderFrame = borderFrame,
 		glowLayers = glowLayers,
 		roleIcon = roleIcon,
-		roleText = roleText,
 		divider = divider,
+		hotIcons = hotIcons,
 		healthBar = healthBar,
 		healthBarBg = healthBarBg,
 		unit = nil,
@@ -328,13 +463,7 @@ end
 local function RenderRoleIcon(slot, role)
 	if not role or role == "NONE" then
 		slot.roleIcon:Hide()
-		if slot.roleText then slot.roleText:Hide() end
 		return
-	end
-
-	if slot.roleText then
-		slot.roleText:SetText(ROLE_TEXT_MAP[role] or "")
-		slot.roleText:Show()
 	end
 
 	local atlas = ROLE_ATLAS_MAP[role]
@@ -353,6 +482,45 @@ local function RenderRoleIcon(slot, role)
 		end
 	end
 	slot.roleIcon:Hide()
+end
+
+local function RenderHotIcons(slot, hots)
+	hots = hots or {}
+	local now = GetTime()
+	for i = 1, MAX_HOTS do
+		local iconFrame = slot.hotIcons[i]
+		local data = hots[i]
+		if data then
+			iconFrame.texture:SetTexture(data.icon)
+
+			local dur = data.duration or 0
+			local exp = data.expirationTime or 0
+			local start = 0
+			if ns.testModeActive and exp < 100 then
+				start = now - math.max(0, dur - exp)
+			elseif exp > 0 and dur > 0 then
+				start = exp - dur
+			end
+
+			if dur > 0 and start > 0 then
+				iconFrame.cooldown:SetCooldown(start, dur)
+				iconFrame.cooldown:Show()
+			else
+				iconFrame.cooldown:Hide()
+			end
+
+			if data.count and data.count > 1 then
+				iconFrame.countText:SetText(tostring(data.count))
+				iconFrame.countText:Show()
+			else
+				iconFrame.countText:Hide()
+			end
+
+			iconFrame:Show()
+		else
+			iconFrame:Hide()
+		end
+	end
 end
 
 local function RenderHealthFraction(slot, frac)
@@ -383,17 +551,14 @@ local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 	if isDead then
 		slot.frame:SetAlpha(0.35)
 		slot.roleIcon:SetDesaturated(true)
-		if slot.roleText then slot.roleText:SetAlpha(0.35) end
 		slot.healthBar:SetAlpha(0.35)
 	elseif not inRange then
 		slot.frame:SetAlpha(0.45)
 		slot.roleIcon:SetDesaturated(true)
-		if slot.roleText then slot.roleText:SetAlpha(0.45) end
 		slot.healthBar:SetAlpha(0.45)
 	else
 		slot.frame:SetAlpha(1.0)
 		slot.roleIcon:SetDesaturated(false)
-		if slot.roleText then slot.roleText:SetAlpha(1.0) end
 		slot.healthBar:SetAlpha(1.0)
 	end
 end
@@ -410,6 +575,7 @@ local function UpdateSlot(slot, unit)
 	local health = UnitHealth(unit)
 	local frac = (maxHealth and maxHealth > 0) and (health / maxHealth) or 0
 	RenderHealthFraction(slot, frac)
+	RenderHotIcons(slot, GetUnitPlayerHoTs(unit))
 
 	local isDead = UnitIsDead(unit)
 	local inRange = isDead or UnitIsInRange(unit)
@@ -428,6 +594,7 @@ local function UpdateTestSlot(slot, entry)
 	slot.frame:Show()
 	RenderRoleIcon(slot, entry.role)
 	RenderHealthFraction(slot, entry.healthPct)
+	RenderHotIcons(slot, entry.hots)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
 end
 
