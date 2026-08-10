@@ -210,25 +210,27 @@ local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Extended to demonstrate My HoT visual layout with thin vertical duration bars (EQ bars):
--- Slot 1: Tank with 2 active HoTs (Renewing Mist at 100% / 20s, Enveloping Mist at 70% / 4.2s of 6s)
--- Slot 2: Healer with 1 active HoT (Renewing Mist at 90% / 18s)
--- Slot 3: DPS 1 with 3 active HoTs (Renewing Mist stacked x2 at 50%, Enveloping Mist at 40% / 2.4s, Essence Font at 70%) + Pink Dispel
+-- Extended to demonstrate My HoT visual layout (with EQ bars) and Targeted Danger prediction:
+-- Slot 1: Tank with 2 active HoTs + Incoming Danger Cast (Shadow Bolt at 70% fill)
+-- Slot 2: Healer with 1 active HoT
+-- Slot 3: DPS 1 with 3 active HoTs + Pink Dispel + Incoming Danger Cast (Fireball at 90% fill)
 -- Slot 4: DPS 2 with 0 HoTs
--- Slot 5: DPS 3 with 1 nearly-expired HoT (Renewing Mist at 10% / 2s of 20s)
+-- Slot 5: DPS 3 with 1 nearly-expired HoT
 local TEST_ROSTER = {
 	{
 		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4.2 },
-		}
+		},
+		danger = { icon = 136075, duration = 3.0, elapsed = 2.1 }
 	},
 	{
 		role = "HEALER", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
-		}
+		},
+		danger = nil
 	},
 	{
 		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
@@ -236,17 +238,20 @@ local TEST_ROSTER = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 2.4 },
 			{ spellId = 191840, icon = 136054, count = 1, duration = 8,  expirationTime = 5.6 },
-		}
+		},
+		danger = { icon = 136075, duration = 3.0, elapsed = 2.7 }
 	},
 	{
 		role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
-		hots = {}
+		hots = {},
+		danger = nil
 	},
 	{
 		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
-		}
+		},
+		danger = nil
 	},
 }
 
@@ -254,6 +259,29 @@ local container
 local slots = {}
 ns.testModeActive = false
 ns.debugHots = false
+ns.debugDanger = false
+ns.hasActiveDangerCasts = false
+
+-- Active tracked hostile casts keyed by casterGUID to prevent duplicate tracking
+-- when the same physical mob is observable via multiple tokens (e.g., target & nameplate1).
+local activeHostileCasts = {}
+
+local function GetHostileCasterTokens()
+	local tokens = { "boss1", "boss2", "boss3", "boss4", "boss5", "boss6", "boss7", "boss8", "target", "focus" }
+	for i = 1, 40 do
+		table.insert(tokens, "nameplate" .. i)
+	end
+	return tokens
+end
+
+local function IsHostileUnit(unit)
+	if not unit or not UnitExists(unit) then return false end
+	if UnitCanAttack("player", unit) or UnitIsEnemy("player", unit) then
+		return true
+	end
+	local reaction = UnitReaction("player", unit)
+	return reaction and reaction < 4
+end
 
 -- Dispel detection helper reflecting current runtime Mistweaver talent capability.
 -- Detox is base for Mistweaver (Magic). Improved Detox adds Poison and Disease.
@@ -564,6 +592,36 @@ local function CreateSlot(index)
 	healthBarBg:SetAllPoints(healthBar)
 	healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
 
+	-- Incoming Danger Indicator Container (icon + horizontal cast bar) placed in central main area
+	local dangerContainer = CreateFrame("Frame", nil, f)
+	dangerContainer:SetSize(76, 16)
+	dangerContainer:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH + 80, -20)
+	dangerContainer:EnableMouse(false)
+
+	local dangerIcon = dangerContainer:CreateTexture(nil, "ARTWORK")
+	dangerIcon:SetSize(14, 14)
+	dangerIcon:SetPoint("LEFT", dangerContainer, "LEFT", 0, 0)
+	dangerIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+	local dangerBar = CreateFrame("StatusBar", nil, dangerContainer, "BackdropTemplate")
+	dangerBar:SetSize(58, 5)
+	dangerBar:SetPoint("LEFT", dangerIcon, "RIGHT", 3, 0)
+	dangerBar:SetOrientation("HORIZONTAL")
+	dangerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	dangerBar:SetStatusBarColor(1.0, 0.4, 0.0, 1.0) -- Restrained Warning Orange/Red
+	dangerBar:EnableMouse(false)
+	dangerBar:SetBackdrop({
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	dangerBar:SetBackdropBorderColor(0.1, 0.1, 0.1, 0.8)
+
+	local dangerBarBg = dangerBar:CreateTexture(nil, "BACKGROUND")
+	dangerBarBg:SetAllPoints(dangerBar)
+	dangerBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
+
+	dangerContainer:Hide()
+
 	f:Hide()
 
 	return {
@@ -575,6 +633,10 @@ local function CreateSlot(index)
 		hotIcons = hotIcons,
 		healthBar = healthBar,
 		healthBarBg = healthBarBg,
+		dangerContainer = dangerContainer,
+		dangerIcon = dangerIcon,
+		dangerBar = dangerBar,
+		dangerBarBg = dangerBarBg,
 		unit = nil,
 	}
 end
@@ -872,6 +934,142 @@ local function UpdateSlot(slot, unit)
 	RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 end
 
+local function GetSoonestCastForSlot(slotUnit)
+	if not slotUnit then return nil end
+	local now = GetTime()
+	local bestCast = nil
+
+	for _, cast in pairs(activeHostileCasts) do
+		if cast.matchedSlotUnit == slotUnit and cast.endTime > now then
+			if not bestCast or cast.endTime < bestCast.endTime then
+				bestCast = cast
+			end
+		end
+	end
+	return bestCast
+end
+
+function ns.RefreshDangerIndicators()
+	if ns.testModeActive then return end
+
+	local now = GetTime()
+	local anyActive = false
+
+	for i = 1, MAX_SLOTS do
+		local slot = slots[i]
+		if slot and slot.unit and UnitExists(slot.unit) then
+			local cast = GetSoonestCastForSlot(slot.unit)
+			if cast then
+				slot.dangerIcon:SetTexture(cast.icon or 136075)
+				local elapsed = math.max(0, now - cast.startTime)
+				local dur = math.max(0.1, cast.duration)
+				slot.dangerBar:SetMinMaxValues(0, dur)
+				slot.dangerBar:SetValue(math.min(dur, elapsed))
+				slot.dangerContainer:Show()
+				anyActive = true
+			else
+				slot.dangerContainer:Hide()
+			end
+		else
+			if slot and slot.dangerContainer then
+				slot.dangerContainer:Hide()
+			end
+		end
+	end
+
+	ns.hasActiveDangerCasts = anyActive
+end
+
+local function UpdateHostileCastForUnit(unit)
+	if not unit or not IsHostileUnit(unit) then return end
+
+	local casterGUID = UnitGUID(unit)
+	if not casterGUID then return end
+
+	local name, text, texture, startTime, endTime, isTradeSkill, castID, notInterruptible, spellID = UnitCastingInfo(unit)
+	local isChannel = false
+
+	if not name then
+		name, text, texture, startTime, endTime, isTradeSkill, notInterruptible, spellID = UnitChannelInfo(unit)
+		isChannel = true
+	end
+
+	if not name or not startTime or not endTime then
+		if activeHostileCasts[casterGUID] then
+			local oldSlot = activeHostileCasts[casterGUID].matchedSlotUnit
+			activeHostileCasts[casterGUID] = nil
+			if ns.debugDanger then
+				print(string.format("|cff33ff99[MistPanel Danger]|r cast ended on %s (cleared %s)", tostring(unit), tostring(oldSlot)))
+			end
+			ns.RefreshDangerIndicators()
+		end
+		return
+	end
+
+	local targetToken = unit .. "target"
+	local matchedSlotUnit = nil
+	if UnitExists(targetToken) then
+		for i = 1, MAX_SLOTS do
+			local slot = slots[i]
+			if slot and slot.unit and UnitExists(slot.unit) then
+				if UnitIsUnit(targetToken, slot.unit) then
+					matchedSlotUnit = slot.unit
+					break
+				end
+			end
+		end
+	end
+
+	local startSec = startTime / 1000
+	local endSec = endTime / 1000
+	local duration = math.max(0.1, endSec - startSec)
+
+	local castObj = {
+		casterGUID = casterGUID,
+		casterUnit = unit,
+		spellID = spellID,
+		spellName = name,
+		icon = texture,
+		startTime = startSec,
+		endTime = endSec,
+		duration = duration,
+		isChannel = isChannel,
+		targetToken = targetToken,
+		matchedSlotUnit = matchedSlotUnit,
+	}
+
+	activeHostileCasts[casterGUID] = castObj
+
+	if ns.debugDanger then
+		print(string.format("|cff33ff99[MistPanel Danger]|r %s cast %s -> target %s -> slotUnit %s",
+			tostring(unit), tostring(name), tostring(targetToken), tostring(matchedSlotUnit or "none")))
+	end
+
+	ns.RefreshDangerIndicators()
+end
+
+local function ClearHostileCastForUnit(unit)
+	if not unit then return end
+	local casterGUID = UnitGUID(unit)
+	if casterGUID and activeHostileCasts[casterGUID] then
+		local oldSlot = activeHostileCasts[casterGUID].matchedSlotUnit
+		activeHostileCasts[casterGUID] = nil
+		if ns.debugDanger then
+			print(string.format("|cff33ff99[MistPanel Danger]|r cleared cast on %s (slotUnit %s)", tostring(unit), tostring(oldSlot)))
+		end
+		ns.RefreshDangerIndicators()
+	end
+end
+
+local function AuditAllHostileCasters()
+	local tokens = GetHostileCasterTokens()
+	for _, token in ipairs(tokens) do
+		if UnitExists(token) and IsHostileUnit(token) then
+			UpdateHostileCastForUnit(token)
+		end
+	end
+end
+
 local function UpdateTestSlot(slot, entry)
 	slot.unit = nil -- not a real unit token; keeps live events from touching it
 	if not entry then
@@ -883,6 +1081,15 @@ local function UpdateTestSlot(slot, entry)
 	RenderHealthFraction(slot, entry.healthPct)
 	RenderHotIcons(slot, entry.hots)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
+
+	if entry.danger then
+		slot.dangerIcon:SetTexture(entry.danger.icon or 136075)
+		slot.dangerBar:SetMinMaxValues(0, entry.danger.duration or 1)
+		slot.dangerBar:SetValue(entry.danger.elapsed or 0)
+		slot.dangerContainer:Show()
+	else
+		slot.dangerContainer:Hide()
+	end
 end
 
 ns.pendingRosterRefresh = false
@@ -1006,6 +1213,7 @@ function ns.PrintStatus()
 	print("  debugRoster: " .. tostring(ns.debugRoster))
 	print("  debugThreat: " .. tostring(ns.debugThreat))
 	print("  debugSecure: " .. tostring(ns.debugSecure))
+	print("  debugDanger: " .. tostring(ns.debugDanger))
 end
 
 function ns.InitializePartyFrame()
@@ -1035,8 +1243,25 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("UNIT_FLAGS")
 	watcher:RegisterEvent("PLAYER_TALENT_UPDATE")
 
+	-- Targeted Hostile Cast Prediction events
+	watcher:RegisterEvent("UNIT_SPELLCAST_START")
+	watcher:RegisterEvent("UNIT_SPELLCAST_STOP")
+	watcher:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
+	watcher:RegisterEvent("UNIT_SPELLCAST_FAILED")
+	watcher:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
+	watcher:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
+	watcher:RegisterEvent("UNIT_TARGET")
+	watcher:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+	watcher:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+
 	watcher:SetScript("OnEvent", function(_, event, unit)
-		if event == "PLAYER_REGEN_ENABLED" then
+		if event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_TARGET" or event == "NAME_PLATE_UNIT_ADDED" then
+			UpdateHostileCastForUnit(unit)
+		elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "NAME_PLATE_UNIT_REMOVED" then
+			ClearHostileCastForUnit(unit)
+		elseif event == "PLAYER_REGEN_ENABLED" then
+			activeHostileCasts = {}
+			ns.RefreshDangerIndicators()
 			if ns.pendingRosterRefresh then
 				ns.RefreshRoster()
 			end
@@ -1053,13 +1278,24 @@ function ns.InitializePartyFrame()
 		end
 	end)
 
-	-- Light OnUpdate ticker (0.2s) to keep range status responsive live
+	-- Light OnUpdate ticker (0.2s) with smooth danger progress animation
 	local timer = 0
+	local dangerTimer = 0
 	watcher:SetScript("OnUpdate", function(_, elapsed)
 		if ns.testModeActive then return end
+
+		if ns.hasActiveDangerCasts then
+			dangerTimer = dangerTimer + elapsed
+			if dangerTimer >= 0.04 then
+				dangerTimer = 0
+				ns.RefreshDangerIndicators()
+			end
+		end
+
 		timer = timer + elapsed
 		if timer >= 0.2 then
 			timer = 0
+			AuditAllHostileCasters()
 			for i = 1, MAX_SLOTS do
 				if slots[i].unit then
 					ns.RefreshUnitState(slots[i].unit)
