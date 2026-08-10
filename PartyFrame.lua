@@ -470,6 +470,23 @@ local function CreateSlot(index)
 		Clique:RegisterFrame(f)
 	end
 
+	-- Alt + Left Click drag to reposition the panel container out of combat
+	f:HookScript("OnMouseDown", function(self, button)
+		if button == "LeftButton" and IsAltKeyDown() and not InCombatLockdown() then
+			container:StartMoving()
+			container.isMoving = true
+		end
+	end)
+
+	f:HookScript("OnMouseUp", function(self, button)
+		if button == "LeftButton" and container.isMoving then
+			container:StopMovingOrSizing()
+			container.isMoving = false
+			local point, _, relativePoint, x, y = container:GetPoint()
+			ns.db.point = { point = point, relativePoint = relativePoint, x = x, y = y }
+		end
+	end)
+
 	-- Soft outer glow layers rendered behind f
 	local glowContainer = CreateFrame("Frame", nil, f)
 	glowContainer:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
@@ -647,24 +664,40 @@ local function CreateContainer()
 	c:SetMovable(true)
 	c:SetClampedToScreen(true)
 	c:EnableMouse(false)
-	c:RegisterForDrag("LeftButton")
-	c:SetScript("OnDragStart", function(self)
-		if not ns.db.locked then
-			self:StartMoving()
+
+	c:SetScript("OnMouseUp", function(self, button)
+		if button == "LeftButton" and self.isMoving then
+			self:StopMovingOrSizing()
+			self.isMoving = false
+			local point, _, relativePoint, x, y = self:GetPoint()
+			ns.db.point = { point = point, relativePoint = relativePoint, x = x, y = y }
 		end
 	end)
-	c:SetScript("OnDragStop", function(self)
-		self:StopMovingOrSizing()
-		local point, _, relativePoint, x, y = self:GetPoint()
-		ns.db.point = { point = point, relativePoint = relativePoint, x = x, y = y }
-	end)
+
 	return c
 end
 
 local function ApplyPoint()
-	local p = ns.db.point
+	local p = ns.db.point or { point = "TOPLEFT", relativePoint = "TOPLEFT", x = 20, y = -180 }
 	container:ClearAllPoints()
-	container:SetPoint(p.point, UIParent, p.relativePoint, p.x, p.y)
+	container:SetPoint(p.point or "TOPLEFT", UIParent, p.relativePoint or "TOPLEFT", p.x or 20, p.y or -180)
+end
+
+ns.pendingResetPos = false
+
+function ns.ResetPosition()
+	if InCombatLockdown() then
+		ns.pendingResetPos = true
+		print("|cff33ff99MistPanel|r: position reset will be applied after combat.")
+		return
+	end
+
+	ns.pendingResetPos = false
+	ns.db.point = { point = "TOPLEFT", relativePoint = "TOPLEFT", x = 20, y = -180 }
+	if container then
+		ApplyPoint()
+	end
+	print("|cff33ff99MistPanel|r: position reset to default left-side location.")
 end
 
 local function LayoutSlots()
@@ -1269,6 +1302,9 @@ function ns.InitializePartyFrame()
 		elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "NAME_PLATE_UNIT_REMOVED" then
 			ClearHostileCastForUnit(unit)
 		elseif event == "PLAYER_REGEN_ENABLED" then
+			if ns.pendingResetPos then
+				ns.ResetPosition()
+			end
 			activeHostileCasts = {}
 			ns.RefreshDangerIndicators()
 			if ns.pendingRosterRefresh then

@@ -102,6 +102,10 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		if ns.RunPredictTest then
 			ns.RunPredictTest()
 		end
+	elseif cmd == "resetpos" or cmd == "resetposition" then
+		if ns.ResetPosition then
+			ns.ResetPosition()
+		end
 	elseif cmd == "status" then
 		ns.PrintStatus()
 	else
@@ -109,6 +113,7 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		print("  /mistpanel lock | unlock")
 		print("  /mistpanel scale small|medium|large")
 		print("  /mistpanel blizzframes on|off")
+		print("  /mistpanel resetpos | resetposition")
 		print("  /mistpanel test")
 		print("  /mistpanel debughots")
 		print("  /mistpanel debugroster")
