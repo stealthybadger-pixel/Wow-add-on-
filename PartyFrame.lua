@@ -34,43 +34,101 @@ local ROLE_ATLAS_MAP = {
 	DAMAGER = "roleicon-tiny-dps",
 }
 
--- Explicit spell ID, static name, and static icon lookup for player-cast healing-over-time effects
-local TRACKED_HOTS = {
-	-- Mistweaver Monk
-	{ spellId = 119611, name = "Renewing Mist",          icon = 136074 },
-	{ spellId = 274968, name = "Renewing Mist (proc)",   icon = 136074 },
-	{ spellId = 124682, name = "Enveloping Mist",        icon = 136035 },
-	{ spellId = 115175, name = "Soothing Mist",          icon = 136098 },
-	{ spellId = 191840, name = "Essence Font (HoT)",     icon = 136054 },
-	{ spellId = 191837, name = "Essence Font (buff)",    icon = 136054 },
-	{ spellId = 325209, name = "Enveloping Breath",      icon = 136035 },
-	{ spellId = 406254, name = "Celestial Harmony",      icon = 136074 },
-	{ spellId = 388478, name = "Unison",                 icon = 136074 },
-	{ spellId = 388193, name = "Chi Harmony",            icon = 136074 },
-	{ spellId = 116849, name = "Life Cocoon",            icon = 136089 },
-
-	-- Restoration Druid
-	{ spellId = 774,    name = "Rejuvenation",           icon = 136081 },
-	{ spellId = 8936,   name = "Regrowth",               icon = 136085 },
-	{ spellId = 33763,  name = "Lifebloom",              icon = 136042 },
-	{ spellId = 48438,  name = "Wild Growth",            icon = 136088 },
-
-	-- Holy / Discipline Priest
-	{ spellId = 139,    name = "Renew",                  icon = 135939 },
-	{ spellId = 41635,  name = "Prayer of Mending",      icon = 135944 },
-	{ spellId = 194384, name = "Atonement",              icon = 135980 },
-
-	-- Holy Paladin
-	{ spellId = 53563,  name = "Beacon of Light",        icon = 135880 },
-
-	-- Restoration Shaman
-	{ spellId = 61295,  name = "Riptide",                icon = 237566 },
-	{ spellId = 974,    name = "Earth Shield",           icon = 136089 },
-
-	-- Preservation Evoker
-	{ spellId = 366155, name = "Reversion",              icon = 4622478 },
-	{ spellId = 355941, name = "Dream Breath",           icon = 4622452 },
+-- Master HoT definitions organized by Class -> Spec Index
+local MASTER_HOT_SPELLS = {
+	MONK = {
+		[2] = { -- Mistweaver Monk
+			specName = "Mistweaver",
+			spells = {
+				{ spellId = 119611, name = "Renewing Mist",     icon = 136074 },
+				{ spellId = 124682, name = "Enveloping Mist",   icon = 136035 },
+				{ spellId = 115175, name = "Soothing Mist",     icon = 136098 },
+				{ spellId = 191840, name = "Essence Font",      icon = 136054 },
+				{ spellId = 325209, name = "Enveloping Breath", icon = 136035 },
+				{ spellId = 116849, name = "Life Cocoon",       icon = 136089 },
+			},
+		},
+	},
+	DRUID = {
+		[4] = { -- Restoration Druid
+			specName = "Restoration",
+			spells = {
+				{ spellId = 774,   name = "Rejuvenation", icon = 136081 },
+				{ spellId = 8936,  name = "Regrowth",     icon = 136085 },
+				{ spellId = 33763, name = "Lifebloom",    icon = 136042 },
+				{ spellId = 48438, name = "Wild Growth",  icon = 136088 },
+			},
+		},
+	},
+	PRIEST = {
+		[2] = { -- Holy Priest
+			specName = "Holy",
+			spells = {
+				{ spellId = 139,   name = "Renew",             icon = 135939 },
+				{ spellId = 41635, name = "Prayer of Mending", icon = 135944 },
+			},
+		},
+		[1] = { -- Discipline Priest
+			specName = "Discipline",
+			spells = {
+				{ spellId = 194384, name = "Atonement",        icon = 135980 },
+			},
+		},
+	},
+	PALADIN = {
+		[1] = { -- Holy Paladin
+			specName = "Holy",
+			spells = {
+				{ spellId = 53563, name = "Beacon of Light", icon = 135880 },
+			},
+		},
+	},
+	SHAMAN = {
+		[3] = { -- Restoration Shaman
+			specName = "Restoration",
+			spells = {
+				{ spellId = 61295, name = "Riptide",     icon = 237566 },
+				{ spellId = 974,   name = "Earth Shield", icon = 136089 },
+			},
+		},
+	},
+	EVOKER = {
+		[2] = { -- Preservation Evoker
+			specName = "Preservation",
+			spells = {
+				{ spellId = 366155, name = "Reversion",   icon = 4622478 },
+				{ spellId = 355941, name = "Dream Breath", icon = 4622452 },
+			},
+		},
+	},
 }
+
+local activeTrackedHots = {}
+local activeSpecTitle = "None / Unsupported"
+
+function ns.UpdateActiveHoTSpells()
+	activeTrackedHots = {}
+	activeSpecTitle = "None / Unsupported"
+
+	local _, className = UnitClass("player")
+	local specIndex = GetSpecialization and GetSpecialization()
+
+	if className and specIndex and MASTER_HOT_SPELLS[className] and MASTER_HOT_SPELLS[className][specIndex] then
+		local specData = MASTER_HOT_SPELLS[className][specIndex]
+		activeSpecTitle = className .. " / " .. specData.specName
+		for _, spellData in ipairs(specData.spells) do
+			table.insert(activeTrackedHots, spellData)
+		end
+	end
+
+	if ns.debugHots then
+		print("|cff33ff99[MistPanel HoT]|r Active spec: " .. activeSpecTitle)
+		print(string.format("|cff33ff99[MistPanel HoT]|r Tracking %d HoTs:", #activeTrackedHots))
+		for _, spellData in ipairs(activeTrackedHots) do
+			print("  - " .. spellData.name .. " (ID " .. spellData.spellId .. ")")
+		end
+	end
+end
 
 -- Fixed colors for Phase 2 combat states
 local COLOR_BORDER_DEFAULT = { 0.15, 0.15, 0.15, 0.9 }
@@ -692,6 +750,7 @@ function ns.RefreshRoster()
 	if ns.testModeActive then
 		return -- test mode owns rendering until toggled off
 	end
+	ns.UpdateActiveHoTSpells()
 	local units = SortedRoster()
 	for i = 1, MAX_SLOTS do
 		UpdateSlot(slots[i], units[i])
