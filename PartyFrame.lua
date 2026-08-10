@@ -35,18 +35,65 @@ local ROLE_ATLAS_MAP = {
 	DAMAGER = "roleicon-tiny-dps",
 }
 
+local function GetStaticSpellIcon(displaySpellId, fallbackIcon)
+	if C_Spell and C_Spell.GetSpellInfo then
+		local info = C_Spell.GetSpellInfo(displaySpellId)
+		if info and info.iconID then
+			return info.iconID
+		end
+	end
+	if GetSpellTexture then
+		local tex = GetSpellTexture(displaySpellId)
+		if tex then
+			return tex
+		end
+	end
+	return fallbackIcon
+end
+
 -- Master HoT definitions organized by Class -> Spec Index
+-- Decouples detection query IDs from official display spell IDs and static icons.
 local MASTER_HOT_SPELLS = {
 	MONK = {
 		[2] = { -- Mistweaver Monk
 			specName = "Mistweaver",
 			spells = {
-				{ spellId = 119611, name = "Renewing Mist",     icon = 136074 },
-				{ spellId = 124682, name = "Enveloping Mist",   icon = 136035 },
-				{ spellId = 115175, name = "Soothing Mist",     icon = 136098 },
-				{ spellId = 191840, name = "Essence Font",      icon = 136054 },
-				{ spellId = 325209, name = "Enveloping Breath", icon = 136035 },
-				{ spellId = 116849, name = "Life Cocoon",       icon = 136089 },
+				{
+					name = "Renewing Mist",
+					displaySpellId = 119611,
+					querySpellIds = { 119611, 274968 },
+					fallbackIcon = 136074,
+				},
+				{
+					name = "Enveloping Mist",
+					displaySpellId = 124682,
+					querySpellIds = { 124682 },
+					fallbackIcon = 136035,
+				},
+				{
+					name = "Soothing Mist",
+					displaySpellId = 115175,
+					querySpellIds = { 115175 },
+					fallbackIcon = 136098,
+				},
+				{
+					name = "Essence Font",
+					displaySpellId = 191840,
+					querySpellIds = { 191840, 191837 },
+					fallbackIcon = 136054,
+				},
+				{
+					name = "Enveloping Breath",
+					displaySpellId = 325209,
+					querySpellIds = { 325209 },
+					fallbackIcon = 136035,
+				},
+				{
+					name = "Life Cocoon",
+					displaySpellId = 116849,
+					querySpellIds = { 116849 },
+					fallbackIcon = 136089,
+				},
 			},
 		},
 	},
@@ -54,10 +101,10 @@ local MASTER_HOT_SPELLS = {
 		[4] = { -- Restoration Druid
 			specName = "Restoration",
 			spells = {
-				{ spellId = 774,   name = "Rejuvenation", icon = 136081 },
-				{ spellId = 8936,  name = "Regrowth",     icon = 136085 },
-				{ spellId = 33763, name = "Lifebloom",    icon = 136042 },
-				{ spellId = 48438, name = "Wild Growth",  icon = 136088 },
+				{ name = "Rejuvenation", displaySpellId = 774, querySpellIds = { 774 }, fallbackIcon = 136081 },
+				{ name = "Regrowth", displaySpellId = 8936, querySpellIds = { 8936 }, fallbackIcon = 136085 },
+				{ name = "Lifebloom", displaySpellId = 33763, querySpellIds = { 33763 }, fallbackIcon = 136042 },
+				{ name = "Wild Growth", displaySpellId = 48438, querySpellIds = { 48438 }, fallbackIcon = 136088 },
 			},
 		},
 	},
@@ -65,14 +112,14 @@ local MASTER_HOT_SPELLS = {
 		[2] = { -- Holy Priest
 			specName = "Holy",
 			spells = {
-				{ spellId = 139,   name = "Renew",             icon = 135939 },
-				{ spellId = 41635, name = "Prayer of Mending", icon = 135944 },
+				{ name = "Renew", displaySpellId = 139, querySpellIds = { 139 }, fallbackIcon = 135939 },
+				{ name = "Prayer of Mending", displaySpellId = 41635, querySpellIds = { 41635 }, fallbackIcon = 135944 },
 			},
 		},
 		[1] = { -- Discipline Priest
 			specName = "Discipline",
 			spells = {
-				{ spellId = 194384, name = "Atonement",        icon = 135980 },
+				{ name = "Atonement", displaySpellId = 194384, querySpellIds = { 194384 }, fallbackIcon = 135980 },
 			},
 		},
 	},
@@ -80,7 +127,7 @@ local MASTER_HOT_SPELLS = {
 		[1] = { -- Holy Paladin
 			specName = "Holy",
 			spells = {
-				{ spellId = 53563, name = "Beacon of Light", icon = 135880 },
+				{ name = "Beacon of Light", displaySpellId = 53563, querySpellIds = { 53563 }, fallbackIcon = 135880 },
 			},
 		},
 	},
@@ -88,8 +135,8 @@ local MASTER_HOT_SPELLS = {
 		[3] = { -- Restoration Shaman
 			specName = "Restoration",
 			spells = {
-				{ spellId = 61295, name = "Riptide",     icon = 237566 },
-				{ spellId = 974,   name = "Earth Shield", icon = 136089 },
+				{ name = "Riptide", displaySpellId = 61295, querySpellIds = { 61295 }, fallbackIcon = 237566 },
+				{ name = "Earth Shield", displaySpellId = 974, querySpellIds = { 974 }, fallbackIcon = 136089 },
 			},
 		},
 	},
@@ -97,8 +144,8 @@ local MASTER_HOT_SPELLS = {
 		[2] = { -- Preservation Evoker
 			specName = "Preservation",
 			spells = {
-				{ spellId = 366155, name = "Reversion",   icon = 4622478 },
-				{ spellId = 355941, name = "Dream Breath", icon = 4622452 },
+				{ name = "Reversion", displaySpellId = 366155, querySpellIds = { 366155 }, fallbackIcon = 4622478 },
+				{ name = "Dream Breath", displaySpellId = 355941, querySpellIds = { 355941 }, fallbackIcon = 4622452 },
 			},
 		},
 	},
@@ -137,12 +184,23 @@ function ns.UpdateActiveHoTSpells()
 		local specData = MASTER_HOT_SPELLS[className][specIndex]
 		activeSpecTitle = className .. " / " .. (specName or specData.specName)
 		for _, spellData in ipairs(specData.spells) do
-			table.insert(activeTrackedHots, spellData)
+			local resolvedIcon = GetStaticSpellIcon(spellData.displaySpellId, spellData.fallbackIcon)
+			table.insert(activeTrackedHots, {
+				name = spellData.name,
+				displaySpellId = spellData.displaySpellId,
+				querySpellIds = spellData.querySpellIds,
+				icon = resolvedIcon,
+			})
 		end
 	end
 
 	if ns.debugHots then
 		print("|cff33ff99[MistPanel HoT]|r class=" .. tostring(className) .. " spec=" .. tostring(specName or specIndex) .. " active definitions=" .. tostring(#activeTrackedHots))
+		for _, spellData in ipairs(activeTrackedHots) do
+			local qList = table.concat(spellData.querySpellIds, ",")
+			print(string.format("  - %s (displayID=%d, queryIDs=%s, icon=%s)",
+				spellData.name, spellData.displaySpellId, qList, tostring(spellData.icon)))
+		end
 	end
 end
 
@@ -295,43 +353,47 @@ local function GetUnitPlayerHoTs(unit)
 	local hots = {}
 	if not unit or not UnitExists(unit) then return hots end
 
-	-- Query player-cast aura directly by spell ID using Blizzard's HELPFUL|PLAYER engine filter.
+	-- Query player-cast aura directly using querySpellIds list and Blizzard's HELPFUL|PLAYER engine filter.
 	local activeDefinitions = GetActiveHotDefinitions()
 	for _, info in ipairs(activeDefinitions) do
 		if #hots >= MAX_HOTS then break end
 
 		local aura
-		if AuraUtil and AuraUtil.FindAuraBySpellID then
-			aura = AuraUtil.FindAuraBySpellID(info.spellId, unit, "HELPFUL|PLAYER")
-		end
-
-		if not aura and C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
-			local index = 1
-			while true do
-				local a = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL|PLAYER")
-				if not a then break end
-				local isMatch = false
-				pcall(function()
-					if a.spellId and a.spellId == info.spellId then
-						isMatch = true
-					end
-				end)
-				if isMatch then
-					aura = a
-					break
-				end
-				index = index + 1
+		for _, qId in ipairs(info.querySpellIds) do
+			if AuraUtil and AuraUtil.FindAuraBySpellID then
+				aura = AuraUtil.FindAuraBySpellID(qId, unit, "HELPFUL|PLAYER")
 			end
+
+			if not aura and C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+				local index = 1
+				while true do
+					local a = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL|PLAYER")
+					if not a then break end
+					local isMatch = false
+					pcall(function()
+						if a.spellId and a.spellId == qId then
+							isMatch = true
+						end
+					end)
+					if isMatch then
+						aura = a
+						break
+					end
+					index = index + 1
+				end
+			end
+
+			if aura then break end
 		end
 
 		if ns.debugHots then
-			print(string.format("|cff33ff99[MistPanel HoT]|r query %s (ID %d) on %s -> %s",
-				info.name, info.spellId, tostring(unit), (aura and "|cff00ff00FOUND|r" or "not found")))
+			print(string.format("|cff33ff99[MistPanel HoT]|r query %s (displayID %d) on %s -> %s",
+				info.name, info.displaySpellId, tostring(unit), (aura and "|cff00ff00FOUND|r" or "not found")))
 		end
 
 		if aura then
 			table.insert(hots, {
-				spellId = info.spellId,
+				spellId = info.displaySpellId,
 				icon = info.icon,
 				name = info.name,
 				aura = aura,
