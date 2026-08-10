@@ -203,12 +203,9 @@ end
 
 local function UnitIsInRange(unit)
 	if not unit or not UnitExists(unit) then return false end
-	if UnitIsUnit(unit, "player") then return true end
-	local inRange, checkedRange = UnitInRange(unit)
-	if checkedRange then
-		return inRange
-	end
-	return inRange ~= false
+	-- Modern Retail WoW UnitInRange() returns secret booleans in tainted contexts.
+	-- To ensure zero secret-value runtime errors, we safely return true for valid units.
+	return true
 end
 
 local function UnitIsDead(unit)
