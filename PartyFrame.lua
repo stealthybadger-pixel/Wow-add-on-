@@ -11,7 +11,7 @@ local HEALTH_BAR_HEIGHT = 5
 local MAX_SLOTS = 5
 local MAX_HOTS = 5
 local HOT_ICON_SIZE = 11
-local HOT_BAR_HEIGHT = 35
+local HOT_BAR_HEIGHT = 34
 
 local SCALE_VALUES = {
 	SMALL = 0.8,
@@ -434,20 +434,15 @@ local function CreateSlot(index)
 	for i = 1, MAX_HOTS do
 		local posX = startX + (i - 1) * (HOT_ICON_SIZE + iconGap)
 
-		-- Tall 35px vertical duration bar (EQ bar) placed DIRECTLY ABOVE the 11x11 HoT icon
-		-- 1px top clearance below border -> Y = -2px
-		local durationBar = CreateFrame("StatusBar", nil, f, "BackdropTemplate")
+		-- Clean borderless vertical duration bar (EQ bar) placed DIRECTLY ABOVE the 11x11 HoT icon
+		-- 2px top clearance below top frame edge -> Y = -3px
+		local durationBar = CreateFrame("StatusBar", nil, f)
 		durationBar:SetSize(HOT_ICON_SIZE, HOT_BAR_HEIGHT)
-		durationBar:SetPoint("TOPLEFT", f, "TOPLEFT", posX, -2)
+		durationBar:SetPoint("TOPLEFT", f, "TOPLEFT", posX, -3)
 		durationBar:SetOrientation("VERTICAL")
 		durationBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 		durationBar:SetStatusBarColor(0.1, 0.9, 0.1)
 		durationBar:EnableMouse(false)
-		durationBar:SetBackdrop({
-			edgeFile = "Interface\\Buttons\\WHITE8x8",
-			edgeSize = 1,
-		})
-		durationBar:SetBackdropBorderColor(0.1, 0.1, 0.1, 0.8)
 
 		local durationBarBg = durationBar:CreateTexture(nil, "BACKGROUND")
 		durationBarBg:SetAllPoints(durationBar)
