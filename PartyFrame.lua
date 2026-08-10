@@ -1232,6 +1232,68 @@ end
 ns.pendingBlizzardSuppression = false
 ns.debugBlizzard = false
 
+local AUDIT_FRAME_SPECS = {
+	{ name = "PartyFrame", label = "PartyFrame (Modern EditMode Container)" },
+	{ name = "PartyFrame.MemberFrame1", label = "PartyFrame.MemberFrame1" },
+	{ name = "PartyFrame.MemberFrame2", label = "PartyFrame.MemberFrame2" },
+	{ name = "PartyFrame.MemberFrame3", label = "PartyFrame.MemberFrame3" },
+	{ name = "PartyFrame.MemberFrame4", label = "PartyFrame.MemberFrame4" },
+	{ name = "CompactPartyFrame", label = "CompactPartyFrame (Legacy Compact Container)" },
+	{ name = "CompactPartyFrameMember1", label = "CompactPartyFrameMember1" },
+	{ name = "CompactPartyFrameMember2", label = "CompactPartyFrameMember2" },
+	{ name = "CompactPartyFrameMember3", label = "CompactPartyFrameMember3" },
+	{ name = "CompactPartyFrameMember4", label = "CompactPartyFrameMember4" },
+	{ name = "CompactPartyFrameMember5", label = "CompactPartyFrameMember5" },
+	{ name = "CompactRaidFrameContainer", label = "CompactRaidFrameContainer (Raid/Party Grid)" },
+	{ name = "CompactRaidFrameManager", label = "CompactRaidFrameManager (Slide-out Manager)" },
+	{ name = "CompactRaidFrame1", label = "CompactRaidFrame1 (Raid-Style Party Member 1)" },
+	{ name = "CompactRaidFrame2", label = "CompactRaidFrame2 (Raid-Style Party Member 2)" },
+	{ name = "CompactRaidFrame3", label = "CompactRaidFrame3 (Raid-Style Party Member 3)" },
+	{ name = "CompactRaidFrame4", label = "CompactRaidFrame4 (Raid-Style Party Member 4)" },
+	{ name = "CompactRaidFrame5", label = "CompactRaidFrame5 (Raid-Style Party Member 5)" },
+	{ name = "PartyMemberFrame1", label = "PartyMemberFrame1 (Legacy Standard Frame 1)" },
+	{ name = "PartyMemberFrame2", label = "PartyMemberFrame2 (Legacy Standard Frame 2)" },
+	{ name = "PartyMemberFrame3", label = "PartyMemberFrame3 (Legacy Standard Frame 3)" },
+	{ name = "PartyMemberFrame4", label = "PartyMemberFrame4 (Legacy Standard Frame 4)" },
+}
+
+local function ResolveFrameObject(nameStr)
+	if not nameStr then return nil end
+	if nameStr:find("%.") then
+		local parts = {}
+		for p in nameStr:gmatch("[^%.]+") do
+			table.insert(parts, p)
+		end
+		local obj = _G[parts[1]]
+		for i = 2, #parts do
+			if obj then
+				obj = obj[parts[i]]
+			end
+		end
+		return obj
+	else
+		return _G[nameStr]
+	end
+end
+
+local function SuppressSingleFrame(frame)
+	if not frame then return end
+	pcall(function()
+		if not InCombatLockdown() then
+			RegisterStateDriver(frame, "visibility", "hide")
+		end
+	end)
+end
+
+local function UnsuppressSingleFrame(frame)
+	if not frame then return end
+	pcall(function()
+		if not InCombatLockdown() then
+			UnregisterStateDriver(frame, "visibility")
+		end
+	end)
+end
+
 function ns.ApplyBlizzardPartyFrameSuppression()
 	if not ns.db.hideBlizzardPartyFrames then
 		return
@@ -1247,40 +1309,45 @@ function ns.ApplyBlizzardPartyFrameSuppression()
 
 	ns.pendingBlizzardSuppression = false
 
-	-- 1. Modern Retail PartyFrame (EditMode container)
+	-- 1. Modern Retail PartyFrame & Member Frames
 	if PartyFrame then
-		pcall(function()
-			RegisterStateDriver(PartyFrame, "visibility", "hide")
-		end)
+		SuppressSingleFrame(PartyFrame)
+		for i = 1, 4 do
+			local mf = PartyFrame["MemberFrame" .. i] or PartyFrame["PartyMemberFrame" .. i]
+			if mf then SuppressSingleFrame(mf) end
+		end
 	end
 
-	-- 2. CompactPartyFrame (Legacy raid-style party container)
+	-- 2. CompactPartyFrame & Member Frames
 	if CompactPartyFrame then
-		pcall(function()
-			RegisterStateDriver(CompactPartyFrame, "visibility", "hide")
-		end)
+		SuppressSingleFrame(CompactPartyFrame)
+		for i = 1, 5 do
+			local cpf = _G["CompactPartyFrameMember" .. i]
+			if cpf then SuppressSingleFrame(cpf) end
+		end
 	end
 
-	-- 3. CompactRaidFrameContainer (Raid/Party container)
+	-- 3. CompactRaidFrameContainer & Members (Raid-Style Party Frames)
 	if CompactRaidFrameContainer then
-		pcall(function()
-			RegisterStateDriver(CompactRaidFrameContainer, "visibility", "hide")
-		end)
+		SuppressSingleFrame(CompactRaidFrameContainer)
+	end
+	if CompactRaidFrameManager then
+		SuppressSingleFrame(CompactRaidFrameManager)
+	end
+	for i = 1, 5 do
+		local crf = _G["CompactRaidFrame" .. i]
+		if crf then SuppressSingleFrame(crf) end
 	end
 
 	-- 4. Legacy PartyMemberFrame1..4
 	for i = 1, 4 do
-		local f = _G["PartyMemberFrame" .. i]
-		if f then
-			pcall(function()
-				RegisterStateDriver(f, "visibility", "hide")
-			end)
-		end
+		local pmf = _G["PartyMemberFrame" .. i]
+		if pmf then SuppressSingleFrame(pmf) end
 	end
 
 	if ns.debugBlizzard then
 		local elvDetected = (_G["ElvUI"] or _G["ElvUF"]) and true or false
-		print(string.format("|cff33ff99[MistPanel Blizzard]|r Suppression applied. ElvUI detected=%s", tostring(elvDetected)))
+		print(string.format("|cff33ff99[MistPanel Blizzard]|r Exhaustive multi-frame suppression applied. ElvUI detected=%s", tostring(elvDetected)))
 	end
 end
 
@@ -1290,26 +1357,43 @@ function ns.SetHideBlizzardPartyFrames(enabled)
 		ns.ApplyBlizzardPartyFrameSuppression()
 	else
 		if not InCombatLockdown() then
-			if PartyFrame then pcall(function() UnregisterStateDriver(PartyFrame, "visibility") end) end
-			if CompactPartyFrame then pcall(function() UnregisterStateDriver(CompactPartyFrame, "visibility") end) end
-			if CompactRaidFrameContainer then pcall(function() UnregisterStateDriver(CompactRaidFrameContainer, "visibility") end) end
+			if PartyFrame then UnsuppressSingleFrame(PartyFrame) end
+			if CompactPartyFrame then UnsuppressSingleFrame(CompactPartyFrame) end
+			if CompactRaidFrameContainer then UnsuppressSingleFrame(CompactRaidFrameContainer) end
+			if CompactRaidFrameManager then UnsuppressSingleFrame(CompactRaidFrameManager) end
+			for i = 1, 5 do
+				local crf = _G["CompactRaidFrame" .. i]
+				if crf then UnsuppressSingleFrame(crf) end
+				local cpf = _G["CompactPartyFrameMember" .. i]
+				if cpf then UnsuppressSingleFrame(cpf) end
+			end
 			for i = 1, 4 do
-				local f = _G["PartyMemberFrame" .. i]
-				if f then pcall(function() UnregisterStateDriver(f, "visibility") end) end
+				local pmf = _G["PartyMemberFrame" .. i]
+				if pmf then UnsuppressSingleFrame(pmf) end
 			end
 		end
 	end
 end
 
 function ns.PrintBlizzardDebug()
-	print("|cff33ff99[MistPanel Blizzard]|r Status Audit:")
+	print("|cff33ff99[MistPanel Blizzard]|r Status & Exhaustive Frame Audit:")
 	print("  hideBlizzardPartyFrames setting: " .. tostring(ns.db.hideBlizzardPartyFrames))
 	print("  InCombatLockdown: " .. tostring(InCombatLockdown()))
 	local elvDetected = (_G["ElvUI"] or _G["ElvUF"]) and true or false
 	print("  ElvUI detected: " .. tostring(elvDetected) .. (elvDetected and " (ElvUI owns custom ElvUF_Party unitframes)" or ""))
-	print("  PartyFrame exists: " .. tostring(PartyFrame ~= nil) .. (PartyFrame and " (shown: " .. tostring(PartyFrame:IsShown()) .. ")" or ""))
-	print("  CompactPartyFrame exists: " .. tostring(CompactPartyFrame ~= nil) .. (CompactPartyFrame and " (shown: " .. tostring(CompactPartyFrame:IsShown()) .. ")" or ""))
-	print("  CompactRaidFrameContainer exists: " .. tostring(CompactRaidFrameContainer ~= nil) .. (CompactRaidFrameContainer and " (shown: " .. tostring(CompactRaidFrameContainer:IsShown()) .. ")" or ""))
+
+	for _, spec in ipairs(AUDIT_FRAME_SPECS) do
+		local obj = ResolveFrameObject(spec.name)
+		if obj then
+			local shown = obj:IsShown() and "SHOWN" or "hidden"
+			local visible = obj:IsVisible() and "|cffff0000[VISIBLE]|r" or "[not visible]"
+			local alpha = obj:GetAlpha()
+			local prot = obj:IsProtected() and "protected" or "unprotected"
+			local parent = obj:GetParent() and obj:GetParent():GetName() or "nil"
+			print(string.format("  - %s: %s %s (alpha=%.1f, %s, parent=%s)",
+				spec.label, shown, visible, alpha, prot, parent))
+		end
+	end
 end
 
 function ns.PrintStatus()
@@ -1338,10 +1422,30 @@ function ns.InitializePartyFrame()
 	ns.SetScale(ns.db.scale)
 	ns.ApplyBlizzardPartyFrameSuppression()
 
+	-- Hook Blizzard's CompactUnitFrame update functions to ensure suppression stays active
+	if CompactPartyFrame_UpdateVisibility and not ns.hookedCompactPartyFrame then
+		ns.hookedCompactPartyFrame = true
+		hooksecurefunc("CompactPartyFrame_UpdateVisibility", function()
+			if ns.db.hideBlizzardPartyFrames and not InCombatLockdown() then
+				ns.ApplyBlizzardPartyFrameSuppression()
+			end
+		end)
+	end
+
+	if CompactRaidFrameContainer_UpdateVisibility and not ns.hookedCompactRaidFrame then
+		ns.hookedCompactRaidFrame = true
+		hooksecurefunc("CompactRaidFrameContainer_UpdateVisibility", function()
+			if ns.db.hideBlizzardPartyFrames and not InCombatLockdown() then
+				ns.ApplyBlizzardPartyFrameSuppression()
+			end
+		end)
+	end
+
 	local watcher = CreateFrame("Frame")
 	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
 	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 	watcher:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
+	watcher:RegisterEvent("COMPACT_UNIT_FRAME_PROFILES_LOADED")
 	watcher:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 	watcher:RegisterEvent("ROLE_CHANGED_INFORM")
 	watcher:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
@@ -1383,7 +1487,7 @@ function ns.InitializePartyFrame()
 			if ns.pendingRosterRefresh then
 				ns.RefreshRoster()
 			end
-		elseif event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "EDIT_MODE_LAYOUTS_UPDATED" then
+		elseif event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "EDIT_MODE_LAYOUTS_UPDATED" or event == "COMPACT_UNIT_FRAME_PROFILES_LOADED" then
 			ns.ApplyBlizzardPartyFrameSuppression()
 			ns.RefreshRoster()
 		elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
