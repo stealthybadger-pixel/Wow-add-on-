@@ -10,8 +10,8 @@ local ROLE_ICON_SIZE = 20
 local HEALTH_BAR_HEIGHT = 5
 local MAX_SLOTS = 5
 local MAX_HOTS = 5
-local HOT_ICON_SIZE = 16
-local HOT_BAR_HEIGHT = 14
+local HOT_ICON_SIZE = 11
+local HOT_BAR_HEIGHT = 35
 
 local SCALE_VALUES = {
 	SMALL = 0.8,
@@ -427,17 +427,18 @@ local function CreateSlot(index)
 	divider:SetWidth(1)
 	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
-	-- Pre-created HoT icon frames pool with duration bar DIRECTLY ABOVE each 16x16 icon
+	-- Pre-created HoT icon frames pool with duration bar DIRECTLY ABOVE each 11x11 icon
 	local hotIcons = {}
 	local startX = ROLE_COLUMN_WIDTH + 6
-	local iconGap = 5
+	local iconGap = 4
 	for i = 1, MAX_HOTS do
 		local posX = startX + (i - 1) * (HOT_ICON_SIZE + iconGap)
 
-		-- Thin vertical duration bar (EQ bar) placed DIRECTLY ABOVE the HoT icon
+		-- Tall 35px vertical duration bar (EQ bar) placed DIRECTLY ABOVE the 11x11 HoT icon
+		-- 1px top clearance below border -> Y = -2px
 		local durationBar = CreateFrame("StatusBar", nil, f, "BackdropTemplate")
 		durationBar:SetSize(HOT_ICON_SIZE, HOT_BAR_HEIGHT)
-		durationBar:SetPoint("TOPLEFT", f, "TOPLEFT", posX, -10)
+		durationBar:SetPoint("TOPLEFT", f, "TOPLEFT", posX, -2)
 		durationBar:SetOrientation("VERTICAL")
 		durationBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 		durationBar:SetStatusBarColor(0.1, 0.9, 0.1)
@@ -452,10 +453,11 @@ local function CreateSlot(index)
 		durationBarBg:SetAllPoints(durationBar)
 		durationBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
 
-		-- 16x16 HoT icon frame placed immediately BELOW the duration bar
+		-- 11x11 HoT icon frame placed immediately BELOW the duration bar with 1px gap
+		-- 1px bottom clearance above health bar -> Y = -49px
 		local iconFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
 		iconFrame:SetSize(HOT_ICON_SIZE, HOT_ICON_SIZE)
-		iconFrame:SetPoint("TOPLEFT", durationBar, "BOTTOMLEFT", 0, -2)
+		iconFrame:SetPoint("TOPLEFT", durationBar, "BOTTOMLEFT", 0, -1)
 		iconFrame:EnableMouse(false)
 		iconFrame:SetBackdrop({
 			edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -477,7 +479,7 @@ local function CreateSlot(index)
 
 		local countText = iconFrame:CreateFontString(nil, "OVERLAY")
 		countText:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", 0, 0)
-		countText:SetFont(STANDARD_TEXT_FONT or "Fonts\\ARIALN.TTF", 8, "OUTLINE")
+		countText:SetFont(STANDARD_TEXT_FONT or "Fonts\\ARIALN.TTF", 7, "OUTLINE")
 		countText:SetTextColor(1, 1, 1, 1)
 
 		iconFrame.texture = tex
