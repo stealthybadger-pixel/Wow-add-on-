@@ -11,18 +11,52 @@ A `/mistpanel test` developer test mode is included so most of this
 checklist can be done solo, without needing a real 4-person group — see
 section 2.1.
 
-## 1. Install
+## 1. Install / live-dev setup
 
-1. Locate your WoW Retail AddOns folder, typically:
-   - Windows: `World of Warcraft\_retail_\Interface\AddOns\`
-   - macOS: `World of Warcraft/_retail_/Interface/AddOns/`
-2. Copy the entire `MistPanel` folder from this repo (the folder that
-   contains `MistPanel.toc`) into that AddOns directory, so you end up
-   with `Interface/AddOns/MistPanel/MistPanel.toc`.
-3. Fully restart WoW (or if already at the character-select screen,
-   just log in — addon lists are read at launch).
-4. At the character-select screen, open **AddOns** and confirm
-   "Mist Panel" is listed and enabled.
+As of this change, `MistPanel.toc`, `Core.lua`, and `PartyFrame.lua`
+live directly at the **root of this git repository** — there is no
+`MistPanel/` subfolder anymore. This lets the repo working copy itself
+be the live AddOns folder: `git pull` + `/reload` instead of
+copying files by hand each time.
+
+**Important:** Claude Code runs this repo in a separate cloud
+environment, not on your Windows PC. Claude commits and pushes to
+GitHub; it cannot write directly into your local
+`D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel`. You still
+need to `git pull` there yourself after each push — this setup just
+removes the manual copy/download step, it doesn't make edits appear
+instantly on your machine.
+
+### One-time setup
+1. If `D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel`
+   already exists with files manually copied in from before (no `.git`
+   folder inside it), rename it aside as a backup, e.g. to
+   `MistPanel_manual_backup` — `git clone` needs an empty or
+   nonexistent target directory.
+2. Clone this repo directly into that exact path and branch:
+   ```
+   git clone -b claude/wow-addon-gdrive-github-rbrb6i https://github.com/stealthybadger-pixel/Wow-add-on- "D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel"
+   ```
+3. Confirm `MistPanel.toc` is directly at
+   `D:\World of Warcraft\_retail_\Interface\AddOns\MistPanel\MistPanel.toc`
+   (not nested inside another `MistPanel\` folder).
+4. Fully restart WoW (or log in from character select — addon lists
+   are read at launch).
+5. At the character-select screen, open **AddOns** and confirm
+   "Mist Panel" is listed and enabled. Once confirmed working, the
+   `MistPanel_manual_backup` folder from step 1 can be deleted.
+
+### Day-to-day loop
+1. Claude edits files here and pushes to GitHub.
+2. On your PC, in that same folder: `git pull`.
+3. In WoW: `/reload`.
+4. Test, report back what you see.
+
+Note this folder will also contain the `WoW Addon/` documentation
+folder and this `TESTING.md` alongside the addon code, since the whole
+repo is now the addon folder. WoW only loads what `MistPanel.toc`
+lists, so the extra files are harmless — just unusual to see sitting in
+an AddOns folder.
 
 ### If the addon refuses to load ("out of date")
 The `.toc` declares `## Interface: 120007`, a computed guess for Retail

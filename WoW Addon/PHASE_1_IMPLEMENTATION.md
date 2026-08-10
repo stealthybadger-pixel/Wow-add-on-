@@ -7,7 +7,12 @@ discoveries made while writing the code. It supplements, and does not
 replace or edit, the original specification documents.
 
 1. WHAT WAS BUILT
-Code lives in /MistPanel at the repo root (a standalone WoW AddOns folder).
+Code lives at the repo root (MistPanel.toc, Core.lua, PartyFrame.lua),
+so the repository itself doubles as the live WoW AddOns folder. It
+originally lived in a MistPanel/ subfolder; that was flattened to the
+repo root so this repo can be git-cloned directly into
+Interface/AddOns/MistPanel without creating a nested MistPanel/MistPanel/
+duplicate. See TESTING.md section 1 for the live-dev git workflow.
 
 Files:
 - MistPanel.toc — addon manifest, SavedVariables declaration.
