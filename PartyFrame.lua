@@ -106,6 +106,13 @@ local MASTER_HOT_SPELLS = {
 local activeTrackedHots = {}
 local activeSpecTitle = "None / Unsupported"
 
+local function GetActiveHotDefinitions()
+	if not activeTrackedHots then
+		return {}
+	end
+	return activeTrackedHots
+end
+
 function ns.UpdateActiveHoTSpells()
 	activeTrackedHots = {}
 	activeSpecTitle = "None / Unsupported"
@@ -113,20 +120,28 @@ function ns.UpdateActiveHoTSpells()
 	local _, className = UnitClass("player")
 	local specIndex = GetSpecialization and GetSpecialization()
 
-	if className and specIndex and MASTER_HOT_SPELLS[className] and MASTER_HOT_SPELLS[className][specIndex] then
+	if not className or not specIndex or specIndex == 0 then
+		if ns.debugHots then
+			print("|cff33ff99[MistPanel HoT]|r spec unavailable during initialization - using empty HoT list")
+		end
+		return
+	end
+
+	local specID, specName
+	if GetSpecializationInfo then
+		specID, specName = GetSpecializationInfo(specIndex)
+	end
+
+	if MASTER_HOT_SPELLS[className] and MASTER_HOT_SPELLS[className][specIndex] then
 		local specData = MASTER_HOT_SPELLS[className][specIndex]
-		activeSpecTitle = className .. " / " .. specData.specName
+		activeSpecTitle = className .. " / " .. (specName or specData.specName)
 		for _, spellData in ipairs(specData.spells) do
 			table.insert(activeTrackedHots, spellData)
 		end
 	end
 
 	if ns.debugHots then
-		print("|cff33ff99[MistPanel HoT]|r Active spec: " .. activeSpecTitle)
-		print(string.format("|cff33ff99[MistPanel HoT]|r Tracking %d HoTs:", #activeTrackedHots))
-		for _, spellData in ipairs(activeTrackedHots) do
-			print("  - " .. spellData.name .. " (ID " .. spellData.spellId .. ")")
-		end
+		print("|cff33ff99[MistPanel HoT]|r class=" .. tostring(className) .. " spec=" .. tostring(specName or specIndex) .. " active definitions=" .. tostring(#activeTrackedHots))
 	end
 end
 
@@ -280,7 +295,8 @@ local function GetUnitPlayerHoTs(unit)
 	if not unit or not UnitExists(unit) then return hots end
 
 	-- Query player-cast aura directly by spell ID using Blizzard's HELPFUL|PLAYER engine filter.
-	for _, info in ipairs(TRACKED_HOTS) do
+	local activeDefinitions = GetActiveHotDefinitions()
+	for _, info in ipairs(activeDefinitions) do
 		if #hots >= MAX_HOTS then break end
 
 		local aura
