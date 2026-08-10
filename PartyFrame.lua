@@ -3,9 +3,11 @@ local ADDON_NAME, ns = ...
 -- Reference dimensions from 02 - Unit Frame Design.md section 2
 -- (200-220px wide, ~50px tall family, before scale presets are applied).
 local FRAME_WIDTH = 210
-local FRAME_HEIGHT = 50
-local FRAME_GAP = 4
-local HEALTH_BAR_HEIGHT = 4
+local FRAME_HEIGHT = 48
+local FRAME_GAP = 6
+local ROLE_COLUMN_WIDTH = 46
+local ROLE_ICON_SIZE = 20
+local HEALTH_BAR_HEIGHT = 5
 local MAX_SLOTS = 5
 
 local SCALE_VALUES = {
@@ -30,24 +32,30 @@ local ROLE_ATLAS_MAP = {
 	DAMAGER = "roleicon-tiny-dps",
 }
 
+local ROLE_TEXT_MAP = {
+	TANK = "TANK",
+	HEALER = "HEALER",
+	DAMAGER = "DPS",
+}
+
 -- Fixed colors for Phase 2 combat states
-local COLOR_BORDER_DEFAULT = { 0.12, 0.12, 0.12, 1.0 }
+local COLOR_BORDER_DEFAULT = { 0.15, 0.15, 0.15, 0.9 }
 local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Extended in Phase 2 to visibly demonstrate all 5 core non-HoT visual states:
--- Slot 1: Aggro (Red outline)
--- Slot 2: Normal
--- Slot 3: Dispellable (Pink outline - also has aggro=true to test pink priority over red)
--- Slot 4: Out of Range (Dimmed / desaturated)
--- Slot 5: Dead (Heavily dimmed / grey state)
+-- Extended in Phase 2 to visibly demonstrate all 5 core non-HoT visual states matching mockup:
+-- Slot 1: Aggro (Red outline + soft red glow)
+-- Slot 2: Normal (Dark outline + faint shadow)
+-- Slot 3: Dispellable (Pink outline + soft pink glow - also has aggro=true to test pink priority over red)
+-- Slot 4: Damaged / Moderate health (Dark outline, orange health)
+-- Slot 5: Low health / Out of Range or Dead demonstration
 local TEST_ROSTER = {
-	{ role = "TANK",    healthPct = 0.75, aggro = true,  dispel = false, inRange = true,  dead = false },
+	{ role = "TANK",    healthPct = 0.70, aggro = true,  dispel = false, inRange = true,  dead = false },
 	{ role = "HEALER",  healthPct = 1.00, aggro = false, dispel = false, inRange = true,  dead = false },
 	{ role = "DAMAGER", healthPct = 0.50, aggro = true,  dispel = true,  inRange = true,  dead = false },
-	{ role = "DAMAGER", healthPct = 0.30, aggro = false, dispel = false, inRange = false, dead = false },
-	{ role = "DAMAGER", healthPct = 0.00, aggro = false, dispel = false, inRange = true,  dead = true  },
+	{ role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true,  dead = false },
+	{ role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true,  dead = false },
 }
 
 local container
@@ -140,7 +148,20 @@ end
 
 local function GetHealthColor(pct)
 	pct = math.max(0, math.min(1, pct or 0))
-	return 1 - pct, pct, 0
+	if pct > 0.5 then
+		return (1 - pct) * 2, 1.0, 0.0
+	else
+		return 1.0, pct * 2, 0.0
+	end
+end
+
+local function SetSlotGlow(slot, r, g, b, baseAlpha)
+	if not slot.glowLayers then return end
+	baseAlpha = baseAlpha or 1.0
+	local alphas = { 0.40, 0.24, 0.12, 0.05 }
+	for idx, layer in ipairs(slot.glowLayers) do
+		layer:SetBackdropBorderColor(r, g, b, alphas[idx] * baseAlpha)
+	end
 end
 
 local function CreateSlot(index)
@@ -149,7 +170,26 @@ local function CreateSlot(index)
 	f:SetBackdrop({
 		bgFile = "Interface\\Buttons\\WHITE8x8",
 	})
-	f:SetBackdropColor(0.03, 0.03, 0.03, 0.9)
+	f:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
+
+	-- Soft outer glow layers rendered behind f
+	local glowContainer = CreateFrame("Frame", nil, f)
+	glowContainer:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
+	glowContainer:SetAllPoints(f)
+
+	local glowLayers = {}
+	local glowOffsets = { 1, 2, 3, 4 }
+	for i, offset in ipairs(glowOffsets) do
+		local layer = CreateFrame("Frame", nil, glowContainer, "BackdropTemplate")
+		layer:SetPoint("TOPLEFT", f, "TOPLEFT", -offset, offset)
+		layer:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", offset, -offset)
+		layer:SetBackdrop({
+			edgeFile = "Interface\\Buttons\\WHITE8x8",
+			edgeSize = 1,
+		})
+		layer:SetBackdropBorderColor(0, 0, 0, 0)
+		glowLayers[i] = layer
+	end
 
 	-- Dedicated border overlay frame at a higher FrameLevel (f:GetFrameLevel() + 10)
 	-- ensures the combat state outline is rendered above all interior slot content
@@ -164,9 +204,22 @@ local function CreateSlot(index)
 	})
 	borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
 
+	-- Role Column (Left side)
 	local roleIcon = f:CreateTexture(nil, "ARTWORK")
-	roleIcon:SetSize(16, 16)
-	roleIcon:SetPoint("LEFT", f, "LEFT", 4, 0)
+	roleIcon:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
+	roleIcon:SetPoint("TOP", f, "TOPLEFT", ROLE_COLUMN_WIDTH / 2, -5)
+
+	local roleText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	roleText:SetPoint("TOP", roleIcon, "BOTTOM", 0, -1)
+	roleText:SetFont(STANDARD_TEXT_FONT or "Fonts\\ARIALN.TTF", 9, "OUTLINE")
+	roleText:SetTextColor(0.85, 0.85, 0.85, 1.0)
+
+	-- Subtle vertical divider separating role column from empty main area
+	local divider = f:CreateTexture(nil, "ARTWORK")
+	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -2)
+	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 2)
+	divider:SetWidth(1)
+	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
 	-- Thin bottom health line: full-width inside the 2px border at full health,
 	-- retreats right to left as damage is taken. Anchored with a 2px inset so
@@ -179,13 +232,21 @@ local function CreateSlot(index)
 	healthBar:SetMinMaxValues(0, 1)
 	healthBar:SetValue(1)
 
+	local healthBarBg = healthBar:CreateTexture(nil, "BACKGROUND")
+	healthBarBg:SetAllPoints(healthBar)
+	healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
+
 	f:Hide()
 
 	return {
 		frame = f,
 		borderFrame = borderFrame,
+		glowLayers = glowLayers,
 		roleIcon = roleIcon,
+		roleText = roleText,
+		divider = divider,
 		healthBar = healthBar,
+		healthBarBg = healthBarBg,
 		unit = nil,
 	}
 end
@@ -267,8 +328,15 @@ end
 local function RenderRoleIcon(slot, role)
 	if not role or role == "NONE" then
 		slot.roleIcon:Hide()
+		if slot.roleText then slot.roleText:Hide() end
 		return
 	end
+
+	if slot.roleText then
+		slot.roleText:SetText(ROLE_TEXT_MAP[role] or "")
+		slot.roleText:Show()
+	end
+
 	local atlas = ROLE_ATLAS_MAP[role]
 	if atlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas) then
 		slot.roleIcon:SetAtlas(atlas)
@@ -291,31 +359,41 @@ local function RenderHealthFraction(slot, frac)
 	frac = math.max(0, math.min(1, frac or 0))
 	slot.healthBar:SetMinMaxValues(0, 1)
 	slot.healthBar:SetValue(frac)
-	slot.healthBar:SetStatusBarColor(GetHealthColor(frac))
+	local r, g, b = GetHealthColor(frac)
+	slot.healthBar:SetStatusBarColor(r, g, b)
+	if slot.healthBarBg then
+		slot.healthBarBg:SetColorTexture(r * 0.25, g * 0.25, b * 0.25, 0.9)
+	end
 end
 
 local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 	-- Border outline: Dispel (pink) takes priority over Aggro (red)
 	if hasDispel then
 		slot.borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DISPEL))
+		SetSlotGlow(slot, COLOR_BORDER_DISPEL[1], COLOR_BORDER_DISPEL[2], COLOR_BORDER_DISPEL[3], 1.0)
 	elseif hasAggro then
 		slot.borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_AGGRO))
+		SetSlotGlow(slot, COLOR_BORDER_AGGRO[1], COLOR_BORDER_AGGRO[2], COLOR_BORDER_AGGRO[3], 1.0)
 	else
 		slot.borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
+		SetSlotGlow(slot, 0.0, 0.0, 0.0, 0.5)
 	end
 
 	-- Frame dimming & desaturation for out-of-range or dead state
 	if isDead then
 		slot.frame:SetAlpha(0.35)
 		slot.roleIcon:SetDesaturated(true)
+		if slot.roleText then slot.roleText:SetAlpha(0.35) end
 		slot.healthBar:SetAlpha(0.35)
 	elseif not inRange then
 		slot.frame:SetAlpha(0.45)
 		slot.roleIcon:SetDesaturated(true)
+		if slot.roleText then slot.roleText:SetAlpha(0.45) end
 		slot.healthBar:SetAlpha(0.45)
 	else
 		slot.frame:SetAlpha(1.0)
 		slot.roleIcon:SetDesaturated(false)
+		if slot.roleText then slot.roleText:SetAlpha(1.0) end
 		slot.healthBar:SetAlpha(1.0)
 	end
 end

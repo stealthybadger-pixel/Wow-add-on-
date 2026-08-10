@@ -9,7 +9,7 @@ local DEFAULTS = {
 	locked = true,
 	scale = "MEDIUM",
 	hideBlizzardPartyFrames = true,
-	point = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 200 },
+	point = { point = "LEFT", relativePoint = "LEFT", x = 35, y = 120 },
 }
 
 local function CopyDefaults(dst, src)
@@ -32,6 +32,9 @@ eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:SetScript("OnEvent", function(_, event, arg1)
 	if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
 		MistPanelDB = CopyDefaults(MistPanelDB or {}, DEFAULTS)
+		if MistPanelDB.point and MistPanelDB.point.point == "CENTER" and MistPanelDB.point.x == 0 and MistPanelDB.point.y == 200 then
+			MistPanelDB.point = { point = "LEFT", relativePoint = "LEFT", x = 35, y = 120 }
+		end
 		ns.db = MistPanelDB
 	elseif event == "PLAYER_LOGIN" then
 		ns.InitializePartyFrame()
