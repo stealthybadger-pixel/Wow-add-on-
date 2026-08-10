@@ -462,6 +462,28 @@ local function LayoutSlots()
 		end
 	end
 end
+local function GetUnitRole(unit)
+	if not unit or not UnitExists(unit) then return "NONE" end
+
+	local role = UnitGroupRolesAssigned(unit)
+	if role and role ~= "NONE" then
+		return role
+	end
+
+	if UnitIsUnit(unit, "player") then
+		if GetSpecialization and GetSpecializationRole then
+			local spec = GetSpecialization()
+			if spec then
+				local specRole = GetSpecializationRole(spec)
+				if specRole and specRole ~= "NONE" then
+					return specRole
+				end
+			end
+		end
+	end
+
+	return "NONE"
+end
 
 -- Player + whichever party1-4 tokens currently exist. Empty outside a
 -- (non-raid) group, which is what drives "hide when solo" / "no raid mode".
@@ -487,8 +509,8 @@ local function SortedRoster()
 		originalIndex[u] = i
 	end
 	table.sort(units, function(a, b)
-		local ra = ROLE_PRIORITY[UnitGroupRolesAssigned(a)] or ROLE_PRIORITY.NONE
-		local rb = ROLE_PRIORITY[UnitGroupRolesAssigned(b)] or ROLE_PRIORITY.NONE
+		local ra = ROLE_PRIORITY[GetUnitRole(a)] or ROLE_PRIORITY.NONE
+		local rb = ROLE_PRIORITY[GetUnitRole(b)] or ROLE_PRIORITY.NONE
 		if ra ~= rb then
 			return ra < rb
 		end
@@ -609,7 +631,7 @@ local function UpdateSlot(slot, unit)
 		return
 	end
 	slot.frame:Show()
-	RenderRoleIcon(slot, UnitGroupRolesAssigned(unit))
+	RenderRoleIcon(slot, GetUnitRole(unit))
 
 	-- Pass health and maxHealth directly to the C++ StatusBar widget methods.
 	-- Modern Retail WoW unit health calls return secret values in tainted contexts,
@@ -660,6 +682,25 @@ function ns.RefreshRoster()
 		UpdateSlot(slots[i], units[i])
 	end
 	container:SetShown(#units > 0)
+
+	if ns.debugRoster then
+		print(string.format("|cff33ff99[MistPanel Roster]|r inGroup=%s inRaid=%s count=%d",
+			tostring(IsInGroup()), tostring(IsInRaid()), #units))
+		if not IsInGroup() then
+			print("  (Solo mode: panel hidden)")
+		else
+			for i = 1, MAX_SLOTS do
+				local u = slots[i].unit
+				if u and UnitExists(u) then
+					local name = UnitName(u) or "unknown"
+					local role = GetUnitRole(u)
+					print(string.format("  slot%d -> %s -> %s -> %s", i, u, role, name))
+				else
+					print(string.format("  slot%d -> (hidden)", i))
+				end
+			end
+		end
+	end
 end
 
 function ns.RefreshUnitState(unit)
@@ -730,6 +771,7 @@ function ns.PrintStatus()
 	print("  in group (non-raid): " .. tostring(IsInGroup() and not IsInRaid()))
 	print("  testMode: " .. tostring(ns.testModeActive))
 	print("  debugHots: " .. tostring(ns.debugHots))
+	print("  debugRoster: " .. tostring(ns.debugRoster))
 end
 
 function ns.InitializePartyFrame()
@@ -747,12 +789,14 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
 	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 	watcher:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+	watcher:RegisterEvent("ROLE_CHANGED_INFORM")
+	watcher:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+	watcher:RegisterEvent("UNIT_CONNECTION")
 	watcher:RegisterEvent("UNIT_HEALTH")
 	watcher:RegisterEvent("UNIT_MAXHEALTH")
 	watcher:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE")
 	watcher:RegisterEvent("UNIT_AURA")
 	watcher:RegisterEvent("UNIT_FLAGS")
-	watcher:RegisterEvent("SPELLS_CHANGED")
 	watcher:RegisterEvent("PLAYER_TALENT_UPDATE")
 
 	watcher:SetScript("OnEvent", function(_, event, unit)
