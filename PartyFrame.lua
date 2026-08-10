@@ -148,22 +148,32 @@ local function CreateSlot(index)
 	f:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
 	f:SetBackdrop({
 		bgFile = "Interface\\Buttons\\WHITE8x8",
+	})
+	f:SetBackdropColor(0.03, 0.03, 0.03, 0.9)
+
+	-- Dedicated border overlay frame at a higher FrameLevel (f:GetFrameLevel() + 10)
+	-- ensures the combat state outline is rendered above all interior slot content
+	-- as a clean, uninterrupted outer border.
+	local borderFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	borderFrame:SetAllPoints(f)
+	borderFrame:SetFrameLevel(f:GetFrameLevel() + 10)
+	borderFrame:EnableMouse(false)
+	borderFrame:SetBackdrop({
 		edgeFile = "Interface\\Buttons\\WHITE8x8",
 		edgeSize = 2,
 	})
-	f:SetBackdropColor(0.03, 0.03, 0.03, 0.9)
-	f:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
+	borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
 
 	local roleIcon = f:CreateTexture(nil, "ARTWORK")
 	roleIcon:SetSize(16, 16)
 	roleIcon:SetPoint("LEFT", f, "LEFT", 4, 0)
-	roleIcon:SetTexture(ROLE_ICON_TEXTURE)
 
-	-- Thin bottom health line: full-width at full health, retreats right to
-	-- left as damage is taken. A left-anchored StatusBar does this natively.
+	-- Thin bottom health line: full-width inside the 2px border at full health,
+	-- retreats right to left as damage is taken. Anchored with a 2px inset so
+	-- it sits fully inside the outer border without overlapping or being covered.
 	local healthBar = CreateFrame("StatusBar", nil, f)
-	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
-	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 2, 2)
+	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
 	healthBar:SetHeight(HEALTH_BAR_HEIGHT)
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	healthBar:SetMinMaxValues(0, 1)
@@ -173,6 +183,7 @@ local function CreateSlot(index)
 
 	return {
 		frame = f,
+		borderFrame = borderFrame,
 		roleIcon = roleIcon,
 		healthBar = healthBar,
 		unit = nil,
@@ -286,11 +297,11 @@ end
 local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 	-- Border outline: Dispel (pink) takes priority over Aggro (red)
 	if hasDispel then
-		slot.frame:SetBackdropBorderColor(unpack(COLOR_BORDER_DISPEL))
+		slot.borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DISPEL))
 	elseif hasAggro then
-		slot.frame:SetBackdropBorderColor(unpack(COLOR_BORDER_AGGRO))
+		slot.borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_AGGRO))
 	else
-		slot.frame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
+		slot.borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
 	end
 
 	-- Frame dimming & desaturation for out-of-range or dead state
