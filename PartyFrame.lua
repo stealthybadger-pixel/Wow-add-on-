@@ -1229,19 +1229,87 @@ function ns.SetScale(scaleKey)
 	container:SetScale(value)
 end
 
-function ns.SetHideBlizzardPartyFrames(enabled)
-	ns.db.hideBlizzardPartyFrames = enabled and true or false
-	if not CompactPartyFrame then
+ns.pendingBlizzardSuppression = false
+ns.debugBlizzard = false
+
+function ns.ApplyBlizzardPartyFrameSuppression()
+	if not ns.db.hideBlizzardPartyFrames then
 		return
 	end
-	if ns.db.hideBlizzardPartyFrames then
-		RegisterStateDriver(CompactPartyFrame, "visibility", "hide")
-	else
-		UnregisterStateDriver(CompactPartyFrame, "visibility")
-		if CompactPartyFrame_UpdateVisibility then
-			CompactPartyFrame_UpdateVisibility()
+
+	if InCombatLockdown() then
+		ns.pendingBlizzardSuppression = true
+		if ns.debugBlizzard then
+			print("|cff33ff99[MistPanel Blizzard]|r InCombatLockdown active -> suppression deferred to PLAYER_REGEN_ENABLED")
+		end
+		return
+	end
+
+	ns.pendingBlizzardSuppression = false
+
+	-- 1. Modern Retail PartyFrame (EditMode container)
+	if PartyFrame then
+		pcall(function()
+			RegisterStateDriver(PartyFrame, "visibility", "hide")
+		end)
+	end
+
+	-- 2. CompactPartyFrame (Legacy raid-style party container)
+	if CompactPartyFrame then
+		pcall(function()
+			RegisterStateDriver(CompactPartyFrame, "visibility", "hide")
+		end)
+	end
+
+	-- 3. CompactRaidFrameContainer (Raid/Party container)
+	if CompactRaidFrameContainer then
+		pcall(function()
+			RegisterStateDriver(CompactRaidFrameContainer, "visibility", "hide")
+		end)
+	end
+
+	-- 4. Legacy PartyMemberFrame1..4
+	for i = 1, 4 do
+		local f = _G["PartyMemberFrame" .. i]
+		if f then
+			pcall(function()
+				RegisterStateDriver(f, "visibility", "hide")
+			end)
 		end
 	end
+
+	if ns.debugBlizzard then
+		local elvDetected = (_G["ElvUI"] or _G["ElvUF"]) and true or false
+		print(string.format("|cff33ff99[MistPanel Blizzard]|r Suppression applied. ElvUI detected=%s", tostring(elvDetected)))
+	end
+end
+
+function ns.SetHideBlizzardPartyFrames(enabled)
+	ns.db.hideBlizzardPartyFrames = enabled and true or false
+	if ns.db.hideBlizzardPartyFrames then
+		ns.ApplyBlizzardPartyFrameSuppression()
+	else
+		if not InCombatLockdown() then
+			if PartyFrame then pcall(function() UnregisterStateDriver(PartyFrame, "visibility") end) end
+			if CompactPartyFrame then pcall(function() UnregisterStateDriver(CompactPartyFrame, "visibility") end) end
+			if CompactRaidFrameContainer then pcall(function() UnregisterStateDriver(CompactRaidFrameContainer, "visibility") end) end
+			for i = 1, 4 do
+				local f = _G["PartyMemberFrame" .. i]
+				if f then pcall(function() UnregisterStateDriver(f, "visibility") end) end
+			end
+		end
+	end
+end
+
+function ns.PrintBlizzardDebug()
+	print("|cff33ff99[MistPanel Blizzard]|r Status Audit:")
+	print("  hideBlizzardPartyFrames setting: " .. tostring(ns.db.hideBlizzardPartyFrames))
+	print("  InCombatLockdown: " .. tostring(InCombatLockdown()))
+	local elvDetected = (_G["ElvUI"] or _G["ElvUF"]) and true or false
+	print("  ElvUI detected: " .. tostring(elvDetected) .. (elvDetected and " (ElvUI owns custom ElvUF_Party unitframes)" or ""))
+	print("  PartyFrame exists: " .. tostring(PartyFrame ~= nil) .. (PartyFrame and " (shown: " .. tostring(PartyFrame:IsShown()) .. ")" or ""))
+	print("  CompactPartyFrame exists: " .. tostring(CompactPartyFrame ~= nil) .. (CompactPartyFrame and " (shown: " .. tostring(CompactPartyFrame:IsShown()) .. ")" or ""))
+	print("  CompactRaidFrameContainer exists: " .. tostring(CompactRaidFrameContainer ~= nil) .. (CompactRaidFrameContainer and " (shown: " .. tostring(CompactRaidFrameContainer:IsShown()) .. ")" or ""))
 end
 
 function ns.PrintStatus()
@@ -1256,6 +1324,7 @@ function ns.PrintStatus()
 	print("  debugThreat: " .. tostring(ns.debugThreat))
 	print("  debugSecure: " .. tostring(ns.debugSecure))
 	print("  debugDanger: " .. tostring(ns.debugDanger))
+	print("  debugBlizzard: " .. tostring(ns.debugBlizzard))
 end
 
 function ns.InitializePartyFrame()
@@ -1267,11 +1336,12 @@ function ns.InitializePartyFrame()
 	ApplyPoint()
 	ns.SetLocked(ns.db.locked)
 	ns.SetScale(ns.db.scale)
-	ns.SetHideBlizzardPartyFrames(ns.db.hideBlizzardPartyFrames)
+	ns.ApplyBlizzardPartyFrameSuppression()
 
 	local watcher = CreateFrame("Frame")
 	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
 	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+	watcher:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
 	watcher:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 	watcher:RegisterEvent("ROLE_CHANGED_INFORM")
 	watcher:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
@@ -1305,11 +1375,17 @@ function ns.InitializePartyFrame()
 			if ns.pendingResetPos then
 				ns.ResetPosition()
 			end
+			if ns.pendingBlizzardSuppression then
+				ns.ApplyBlizzardPartyFrameSuppression()
+			end
 			activeHostileCasts = {}
 			ns.RefreshDangerIndicators()
 			if ns.pendingRosterRefresh then
 				ns.RefreshRoster()
 			end
+		elseif event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "EDIT_MODE_LAYOUTS_UPDATED" then
+			ns.ApplyBlizzardPartyFrameSuppression()
+			ns.RefreshRoster()
 		elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
 			ns.RefreshUnitState(unit)
 		elseif event == "UNIT_THREAT_LIST_UPDATE" then

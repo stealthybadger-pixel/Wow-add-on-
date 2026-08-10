@@ -106,6 +106,12 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		if ns.ResetPosition then
 			ns.ResetPosition()
 		end
+	elseif cmd == "debugblizzard" or cmd == "blizzdebug" then
+		ns.debugBlizzard = not ns.debugBlizzard
+		print("|cff33ff99MistPanel|r: Blizzard frame debug logging " .. (ns.debugBlizzard and "|cff00ff00ENABLED|r" or "|cffff0000DISABLED|r") .. ".")
+		if ns.PrintBlizzardDebug then
+			ns.PrintBlizzardDebug()
+		end
 	elseif cmd == "status" then
 		ns.PrintStatus()
 	else
@@ -120,6 +126,7 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		print("  /mistpanel debugthreat")
 		print("  /mistpanel debugsecure")
 		print("  /mistpanel debugdanger")
+		print("  /mistpanel debugblizzard")
 		print("  /mistpanel predicttest")
 		print("  /mistpanel status")
 	end
