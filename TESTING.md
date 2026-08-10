@@ -48,6 +48,9 @@ to iterate on the visual shell while solo:
   appear immediately with all 5 slots filled, even though you're solo
   (test mode intentionally overrides "hide when solo").
 - Confirm role icons read Tank, Healer, DPS, DPS, DPS top to bottom.
+  (Role icons were previously missing in test mode - the icon technique
+  was switched to Blizzard's current role-icon atlas, the same one live
+  party/raid frames use. This still needs to be re-confirmed in-game.)
 - Confirm the 5 health bars show visibly different lengths/colors: the
   simulated roster is seeded at 55% (tank), 100% (healer), 82%, 38%,
   and 12% (the two DPS at the low end should read solidly red).
@@ -195,11 +198,18 @@ it has been confirmed against an actual running client:
   taint-free in this client**, including across mid-combat roster
   changes (disconnect/reconnect, mid-fight join). This was Phase 0's
   own flagged "needs in-game proof of concept" item and is still open.
-- **`GetTexCoordsForRoleSmallCircle` existing and rendering the correct
-  icon.** The code degrades gracefully (hides the icon) if the function
-  is missing, but visual correctness when present is unverified. This
-  applies equally to the simulated test-mode frames, since they share
-  the same rendering code.
+- **Role icon rendering.** Role icons were reported missing in test mode
+  in-game (no Lua error, just no icon). Real and test frames share the
+  exact same rendering function, so this almost certainly affected real
+  party frames too - it just hadn't been observed there yet. The likely
+  cause was the old technique (a raw `Interface\LFGFrame\...` texture
+  file + `GetTexCoordsForRoleSmallCircle`), which may no longer resolve
+  correctly on this client. The fix switches to Blizzard's current
+  small role-icon atlas (`roleicon-tiny-tank` / `-healer` / `-dps`) -
+  the same atlas the live default party/raid frames use - with the old
+  technique kept only as a fallback. This has not yet been re-verified
+  in-game; please confirm role icons now appear on both test-mode and
+  real frames.
 - **All visual/layout judgment calls**: whether 210x50px frames at the
   three scale presets actually look right, whether 4px gaps read as
   "small," whether the near-black background/border contrast is

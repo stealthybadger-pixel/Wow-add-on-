@@ -24,6 +24,14 @@ local ROLE_PRIORITY = {
 
 local ROLE_ICON_TEXTURE = "Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES"
 
+-- Maps role strings to Blizzard's current small role-icon atlas - the same
+-- atlas the live default party/raid frames use for their role icons.
+local ROLE_ATLAS = {
+	TANK = "roleicon-tiny-tank",
+	HEALER = "roleicon-tiny-healer",
+	DAMAGER = "roleicon-tiny-dps",
+}
+
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
 -- Uses the same 5-slot Tank/Healer/DPS/DPS/DPS shape as a real group, with
 -- varied health percentages so the health-line behaviour across the full
@@ -156,10 +164,19 @@ end
 -- Shared rendering: real party slots and the simulated test-mode slots both
 -- funnel through these two functions, so both use identical dimensions,
 -- spacing, role indicators, scale and positioning - only the data differs.
+-- Tries the current role-icon atlas first, falls back to the older
+-- texcoord-on-texture technique, and only hides the icon if neither works.
 local function RenderRoleIcon(slot, role)
+	local atlas = ROLE_ATLAS[role]
+	if atlas and slot.roleIcon.SetAtlas then
+		slot.roleIcon:SetAtlas(atlas)
+		slot.roleIcon:Show()
+		return
+	end
 	if GetTexCoordsForRoleSmallCircle then
 		local l, r, t, b = GetTexCoordsForRoleSmallCircle(role)
 		if l then
+			slot.roleIcon:SetTexture(ROLE_ICON_TEXTURE)
 			slot.roleIcon:SetTexCoord(l, r, t, b)
 			slot.roleIcon:Show()
 			return
