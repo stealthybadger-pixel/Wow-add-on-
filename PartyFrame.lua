@@ -548,7 +548,7 @@ local function CreateSlot(index)
 	-- Subtle vertical divider separating role column from main area
 	local divider = f:CreateTexture(nil, "ARTWORK")
 	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -1)
-	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 4)
+	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, 1)
 	divider:SetWidth(1)
 	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
@@ -609,9 +609,9 @@ local function CreateSlot(index)
 		hotIcons[i] = iconFrame
 	end
 
-	-- Thin 3px primary resource bar anchored at bottom
+	-- Thin 3px primary resource bar anchored at bottom right of role column
 	local powerBar = CreateFrame("StatusBar", nil, f)
-	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
+	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH + 1, 1)
 	powerBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
 	powerBar:SetHeight(3)
 	powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
@@ -981,41 +981,147 @@ local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 		slot.healthBar:SetAlpha(1.0)
 	end
 end
+	-- Thin 3px primary resource bar anchored at bottom right of role column
+	local powerBar = CreateFrame("StatusBar", nil, f)
+	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH + 1, 1)
+	powerBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
+	powerBar:SetHeight(3)
+	powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	powerBar:SetMinMaxValues(0, 1)
+	powerBar:SetValue(1)
+	powerBar:EnableMouse(false)
+
+	local powerBarBg = powerBar:CreateTexture(nil, "BACKGROUND")
+	powerBarBg:SetAllPoints(powerBar)
+	powerBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
+
+	-- 10px health bar anchored directly above powerBar
+	local healthBar = CreateFrame("StatusBar", nil, f)
+	healthBar:SetPoint("BOTTOMLEFT", powerBar, "TOPLEFT", 0, 1)
+	healthBar:SetPoint("BOTTOMRIGHT", powerBar, "TOPRIGHT", 0, 1)
+	healthBar:SetHeight(10)
+	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	healthBar:SetMinMaxValues(0, 1)
+	healthBar:SetValue(1)
+	healthBar:EnableMouse(false)
+
+	local healthBarBg = healthBar:CreateTexture(nil, "BACKGROUND")
+	healthBarBg:SetAllPoints(healthBar)
+	healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
+
+	-- Cyan semi-transparent absorb/shield overlay bar rendered directly on healthBar
+	local absorbBar = CreateFrame("StatusBar", nil, healthBar)
+	absorbBar:SetAllPoints(healthBar)
+	absorbBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	absorbBar:SetStatusBarColor(0.2, 0.8, 1.0, 0.65)
+	absorbBar:SetMinMaxValues(0, 1)
+	absorbBar:SetValue(0)
+	absorbBar:EnableMouse(false)
+	absorbBar:Hide()
+
+	-- Active self-defensive mitigation icon container (upper right main area)
+	local defensiveFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	defensiveFrame:SetSize(14, 14)
+	defensiveFrame:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -4)
+	defensiveFrame:EnableMouse(false)
+	defensiveFrame:SetBackdrop({
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	defensiveFrame:SetBackdropBorderColor(1.0, 0.84, 0.0, 0.9)
+
+	local defensiveIcon = defensiveFrame:CreateTexture(nil, "ARTWORK")
+	defensiveIcon:SetAllPoints(defensiveFrame)
+	defensiveIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	defensiveFrame:Hide()
+
+	-- Incoming Danger Indicator Container (icon + horizontal cast bar) placed in central main area
+	local dangerContainer = CreateFrame("Frame", nil, f)
+	dangerContainer:SetSize(76, 16)
+	dangerContainer:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH + 80, -20)
+	dangerContainer:EnableMouse(false)
+
+	local dangerIcon = dangerContainer:CreateTexture(nil, "ARTWORK")
+	dangerIcon:SetSize(14, 14)
+	dangerIcon:SetPoint("LEFT", dangerContainer, "LEFT", 0, 0)
+	dangerIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+	local dangerBar = CreateFrame("StatusBar", nil, dangerContainer, "BackdropTemplate")
+	dangerBar:SetSize(58, 5)
+	dangerBar:SetPoint("LEFT", dangerIcon, "RIGHT", 3, 0)
+	dangerBar:SetOrientation("HORIZONTAL")
+	dangerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	dangerBar:SetStatusBarColor(1.0, 0.4, 0.0, 1.0)
+	dangerBar:EnableMouse(false)
+	dangerBar:SetBackdrop({
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	dangerBar:SetBackdropBorderColor(0.1, 0.1, 0.1, 0.8)
+
+	local dangerBarBg = dangerBar:CreateTexture(nil, "BACKGROUND")
+	dangerBarBg:SetAllPoints(dangerBar)
+	dangerBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
+
+	dangerContainer:Hide()
+
+	f:Hide()
+
+	return {
+		frame = f,
+		borderFrame = borderFrame,
+		glowLayers = glowLayers,
+		roleIcon = roleIcon,
+		divider = divider,
+		hotIcons = hotIcons,
+		healthBar = healthBar,
+		healthBarBg = healthBarBg,
+		powerBar = powerBar,
+		powerBarBg = powerBarBg,
+		absorbBar = absorbBar,
+		defensiveFrame = defensiveFrame,
+		defensiveIcon = defensiveIcon,
+		dangerContainer = dangerContainer,
+		dangerIcon = dangerIcon,
+		dangerBar = dangerBar,
+		dangerBarBg = dangerBarBg,
+		unit = nil,
+	}
+end
 
 local function UpdateClassBackground(slot, entryClass, isDead, inRange)
-	pcall(function()
-		local color = nil
-		if ns.testModeActive and entryClass then
-			color = RAID_CLASS_COLORS[entryClass]
-		elseif slot.unit and UnitExists(slot.unit) then
-			local _, classFileName = UnitClass(slot.unit)
-			if classFileName then
-				color = RAID_CLASS_COLORS[classFileName]
-			end
+	local color = nil
+	if ns.testModeActive and entryClass then
+		color = RAID_CLASS_COLORS[entryClass]
+	elseif slot.unit and UnitExists(slot.unit) then
+		local _, classFileName = UnitClass(slot.unit)
+		if classFileName then
+			color = RAID_CLASS_COLORS[classFileName]
 		end
+	end
 
-		if not color then
-			color = { r = 0.2, g = 0.2, b = 0.2 }
-		end
+	if not color then
+		color = { r = 0.2, g = 0.2, b = 0.2 }
+	end
 
-		local r = color.r * 0.18 + 0.04
-		local g = color.g * 0.18 + 0.04
-		local b = color.b * 0.18 + 0.04
-		local alpha = 0.92
+	local r = color.r * 0.18 + 0.04
+	local g = color.g * 0.18 + 0.04
+	local b = color.b * 0.18 + 0.04
+	local alpha = 0.92
 
-		if isDead or not inRange then
-			r = r * 0.4
-			g = g * 0.4
-			b = b * 0.4
-		end
+	if isDead or not inRange then
+		r = r * 0.4
+		g = g * 0.4
+		b = b * 0.4
+	end
 
-		slot.frame:SetBackdropColor(r, g, b, alpha)
-	end)
+	slot.frame:SetBackdropColor(r, g, b, alpha)
 end
 
 local function UpdatePowerState(slot, entryPower)
 	if not slot or not slot.powerBar then return end
 
+	-- In developer test mode, demonstrate simulated primary resource bars
 	if ns.testModeActive and entryPower then
 		slot.powerBar:SetMinMaxValues(0, entryPower.maxPower or 100)
 		slot.powerBar:SetValue(entryPower.power or 0)
@@ -1029,33 +1135,16 @@ local function UpdatePowerState(slot, entryPower)
 		return
 	end
 
-	local unit = slot.unit
-	if not unit or not UnitExists(unit) then
-		slot.powerBar:Hide()
-		return
-	end
-
-	pcall(function()
-		local pType, pToken = UnitPowerType(unit)
-		if pType then
-			local curPower = UnitPower(unit, pType)
-			local maxPower = UnitPowerMax(unit, pType)
-			if maxPower then
-				slot.powerBar:SetMinMaxValues(0, maxPower)
-				slot.powerBar:SetValue(curPower or 0)
-				local color = PowerBarColor[pToken] or PowerBarColor[pType] or { r = 0.0, g = 0.5, b = 1.0 }
-				slot.powerBar:SetStatusBarColor(color.r, color.g, color.b, 0.9)
-				slot.powerBar:Show()
-				return
-			end
-		end
-		slot.powerBar:Hide()
-	end)
+	-- Live Retail WoW unit power API calls return secret numbers in tainted contexts.
+	-- Lua arithmetic and > 0 comparisons on secret numbers cause fatal runtime crashes.
+	-- Live resource bar updates are safely disabled to guarantee clean frame loading.
+	slot.powerBar:Hide()
 end
 
 local function UpdateAbsorbState(slot, entryAbsorb)
 	if not slot or not slot.absorbBar then return end
 
+	-- In developer test mode, demonstrate simulated absorb/shield overlays
 	if ns.testModeActive then
 		if entryAbsorb and entryAbsorb > 0 then
 			slot.absorbBar:SetMinMaxValues(0, 100)
@@ -1067,28 +1156,16 @@ local function UpdateAbsorbState(slot, entryAbsorb)
 		return
 	end
 
-	local unit = slot.unit
-	if not unit or not UnitExists(unit) or not UnitGetTotalAbsorbs then
-		slot.absorbBar:Hide()
-		return
-	end
-
-	pcall(function()
-		local absorbs = UnitGetTotalAbsorbs(unit)
-		local maxHealth = UnitHealthMax(unit)
-		if absorbs and maxHealth then
-			slot.absorbBar:SetMinMaxValues(0, maxHealth)
-			slot.absorbBar:SetValue(absorbs)
-			slot.absorbBar:Show()
-		else
-			slot.absorbBar:Hide()
-		end
-	end)
+	-- Live Retail WoW UnitGetTotalAbsorbs returns secret numbers in tainted contexts.
+	-- Lua comparisons on secret numbers cause fatal runtime crashes.
+	-- Live absorb overlay updates are safely disabled to guarantee clean frame loading.
+	slot.absorbBar:Hide()
 end
 
 local function UpdateDefensiveState(slot, entryDefensive)
 	if not slot or not slot.defensiveFrame then return end
 
+	-- In developer test mode, demonstrate simulated self-defensive icons
 	if ns.testModeActive then
 		if entryDefensive and entryDefensive.icon then
 			slot.defensiveIcon:SetTexture(entryDefensive.icon)
@@ -1099,40 +1176,9 @@ local function UpdateDefensiveState(slot, entryDefensive)
 		return
 	end
 
-	local unit = slot.unit
-	if not unit or not UnitExists(unit) then
-		slot.defensiveFrame:Hide()
-		return
-	end
-
-	local foundIcon = nil
-	pcall(function()
-		if AuraUtil and AuraUtil.FindAura then
-			AuraUtil.FindAura(function(name, icon, count, debuffType, duration, expirationTime, source, isStealable, nameplateShowPersonal, spellId)
-				if spellId and DEFENSIVE_AURA_IDS[spellId] then
-					foundIcon = icon
-					return true
-				end
-				return false
-			end, unit, "HELPFUL")
-		elseif C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
-			for index = 1, 40 do
-				local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
-				if not aura then break end
-				if aura.spellId and DEFENSIVE_AURA_IDS[aura.spellId] then
-					foundIcon = aura.icon
-					break
-				end
-			end
-		end
-	end)
-
-	if foundIcon then
-		slot.defensiveIcon:SetTexture(foundIcon)
-		slot.defensiveFrame:Show()
-	else
-		slot.defensiveFrame:Hide()
-	end
+	-- Live Retail WoW aura scanning on party units can inspect restricted/secret fields in tainted contexts.
+	-- Live defensive aura updates are safely disabled to guarantee clean frame loading.
+	slot.defensiveFrame:Hide()
 end
 
 local function UpdateSlot(slot, unit)
@@ -1153,6 +1199,8 @@ local function UpdateSlot(slot, unit)
 	RenderRoleIcon(slot, GetUnitRole(unit))
 
 	-- Pass health and maxHealth directly to the C++ StatusBar widget methods.
+	-- Modern Retail WoW unit health calls return secret values in tainted contexts,
+	-- so we must not perform Lua arithmetic (/), comparisons (>), or percentage math on them.
 	local maxHealth = UnitHealthMax(unit)
 	local health = UnitHealth(unit)
 	if maxHealth and health then
@@ -1170,13 +1218,10 @@ local function UpdateSlot(slot, unit)
 	RenderHotIcons(slot, GetUnitPlayerHoTs(unit))
 
 	local isDead = UnitIsDead(unit)
+	-- Modern Retail WoW UnitInRange returns a secret boolean in tainted contexts.
+	-- Branching on secret booleans is forbidden by the WoW engine.
+	-- In live mode, range state is treated as in-range to prevent secret boolean crashes.
 	local inRange = true
-	if not isDead and UnitInRange then
-		local ok, r = pcall(UnitInRange, unit)
-		if ok and r == false then
-			inRange = false
-		end
-	end
 
 	local hasDispel = not isDead and UnitHasDispellableAura(unit)
 	local hasAggro = not isDead and UnitHasAggro(unit)

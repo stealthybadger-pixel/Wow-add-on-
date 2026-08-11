@@ -29,20 +29,17 @@ Roles shown: Tank, Healer, DPS.
 
 No player name is displayed. The stable party ordering and role icon provide identity sufficient for this personal use case.
 
-5\. Health & Primary Resource Bar  
-Health is a 10px horizontal bar anchored along the bottom of the unit frame.
+5\. Health  
+Health is a 10px horizontal bar anchored along the bottom of the main frame area (starting cleanly after the left role column gutter).
 
-Directly underneath the health bar sits a thin (3px) primary resource bar displaying each unit's active resource type (Mana, Energy, Rage, Focus, Runic Power, etc.).
-
-Absorbs / Shields:
-Incoming shield absorbs (such as Life Cocoon or Power Word: Shield) render as a semi-transparent cyan overlay directly on top of the health bar.
+Retail WoW API & Engine Restrictions Note:
+Live Primary Resource Bars, Shield Absorbs, Active Self-Defensive Cooldown Scanning, and Targeted Hostile Cast Prediction are restricted in live play due to Retail WoW C++ secret-value API rules (performing Lua comparisons or arithmetic on secret values returned by unit power, absorb, or aura APIs causes fatal runtime crashes). These elements are safely demonstrated in Developer Test Mode (`/mistpanel test`), while live party frames focus exclusively on clean, reliable, secret-safe Health bars, HoTs, role icons, and combat outlines (Aggro / Dispel).
 
 Behaviour:  
 • Full health = full-width green line.  
 • Damage causes the line to retreat from right to left.  
-• Primary resource bar sits below health as a thin subordinate indicator.  
-• Absorbs overlay on the health bar dynamically.  
-• No health, power, or absorb numbers are displayed.
+• Health bar starts after the left role column gutter.  
+• No health numbers or percentages are displayed.
 
 6\. Duration-Based Healing Effects & Defensive Mitigation Icons  
 Only the user's own healing effects with a duration are visualized via vertical duration bars (EQ bars) positioned directly above 11x11 spell icons.

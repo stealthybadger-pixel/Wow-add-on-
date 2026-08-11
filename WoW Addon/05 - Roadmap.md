@@ -91,14 +91,24 @@ Build:
 Acceptance: configuration can be completed without joining a real party.
 
 PHASE 6 — COMPACT FRAME VISUAL ADDITIONS & REFINEMENTS  
-Implemented:  
+Implemented Live:  
 • Exhaustive multi-frame Blizzard party suppression (PartyFrame, CompactPartyFrame, CompactRaidFrameContainer, Pool Members).  
-• Thin primary resource bar (Mana, Energy, Rage, Focus, Runic Power, etc.) underneath health.  
 • Class-colored dark desaturated backgrounds (`RAID_CLASS_COLORS` tinted).  
-• Cyan absorb/shield overlay (supporting Life Cocoon, PW:Shield, etc.).  
-• Active self-defensive mitigation icons (Barkskin, Shield Wall, Divine Shield, Ice Block, Fortifying Brew, Astral Shift, etc.).  
+• Re-anchored health bars starting cleanly after the left role column.  
+• Alt + Left-Click Drag positioning with persistent location saving.  
+• Spec-Aware Mistweaver HoTs with vertical EQ duration bars.  
 
-OUT OF V1  
+Developer Test Mode Only (`/mistpanel test`):  
+• Primary resource bar (Mana, Energy, Rage, Focus, Runic Power, etc.).  
+• Cyan absorb/shield overlay (Life Cocoon, PW:Shield, etc.).  
+• Active self-defensive mitigation icons (Barkskin, Shield Wall, Divine Shield, Ice Block, Fortifying Brew, Astral Shift, etc.).  
+• Targeted hostile cast prediction indicator.  
+
+OUT OF V1 (Restricted by Retail WoW Engine Secret-Value Rules):  
+• Live primary resource bars (UnitPower secret values).  
+• Live shield absorb overlays (UnitGetTotalAbsorbs secret values).  
+• Live self-defensive aura scanning (Tainted aura inspection).  
+• Live targeted hostile cast prediction (UnitIsUnit secret booleans).  
 • Raid frames.  
 • Pets.  
 • Other healer classes.  
