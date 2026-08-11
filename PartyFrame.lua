@@ -1724,7 +1724,6 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
 	watcher:RegisterEvent("UNIT_CONNECTION")
 	watcher:RegisterEvent("UNIT_HEALTH")
-	watcher:RegisterEvent("UNIT_HEALTH_FREQUENT")
 	watcher:RegisterEvent("UNIT_MAXHEALTH")
 	watcher:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED")
 	watcher:RegisterEvent("UNIT_POWER_UPDATE")
@@ -1768,7 +1767,7 @@ function ns.InitializePartyFrame()
 		elseif event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "EDIT_MODE_LAYOUTS_UPDATED" or event == "COMPACT_UNIT_FRAME_PROFILES_LOADED" then
 			ns.ApplyBlizzardPartyFrameSuppression()
 			ns.RefreshRoster()
-		elseif event == "UNIT_HEALTH" or event == "UNIT_HEALTH_FREQUENT" or event == "UNIT_MAXHEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_POWER_UPDATE" or event == "UNIT_POWER_FREQUENT" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
+		elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_POWER_UPDATE" or event == "UNIT_POWER_FREQUENT" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
 			ns.RefreshUnitState(unit)
 		elseif event == "UNIT_THREAT_LIST_UPDATE" then
 			for i = 1, MAX_SLOTS do
