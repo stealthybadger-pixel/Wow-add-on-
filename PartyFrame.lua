@@ -222,16 +222,44 @@ local COLOR_BORDER_DEFAULT = { 0.15, 0.15, 0.15, 0.9 }
 local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
+-- Class colour source palette (darkened and desaturated for subtle inner frame background tint)
+local CLASS_COLORS = {
+	DEATHKNIGHT = { 0.77, 0.12, 0.23 },
+	DEMONHUNTER = { 0.64, 0.19, 0.79 },
+	DRUID       = { 1.00, 0.49, 0.04 },
+	EVOKER      = { 0.20, 0.58, 0.50 },
+	HUNTER      = { 0.67, 0.83, 0.45 },
+	MAGE        = { 0.25, 0.78, 0.92 },
+	MONK        = { 0.00, 1.00, 0.60 },
+	PALADIN     = { 0.96, 0.55, 0.73 },
+	PRIEST      = { 1.00, 1.00, 1.00 },
+	ROGUE       = { 1.00, 0.96, 0.41 },
+	SHAMAN      = { 0.00, 0.44, 0.87 },
+	WARLOCK     = { 0.53, 0.53, 0.93 },
+	WARRIOR     = { 0.78, 0.62, 0.43 },
+}
+
+local function UpdateClassBackground(slot, classToken)
+	if not slot or not slot.bgTexture then return end
+	local color = CLASS_COLORS[classToken]
+	if color then
+		-- Darken (x 0.18) & desaturate for a subtle, elegant inner frame background tint
+		slot.bgTexture:SetColorTexture(color[1] * 0.18, color[2] * 0.18, color[3] * 0.18, 0.85)
+	else
+		slot.bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.85)
+	end
+end
+
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Extended to demonstrate My HoT visual layout (with EQ bars), Role Gutter Absorb Bar, Granular Role Gutter Threat Bar, and Targeted Danger prediction:
--- Slot 1: Tank with 100% full shield (728/728) + 100% threat + Rage power bar + 2 active HoTs + Danger
--- Slot 2: Healer with 0% shield + 0% threat + Mana power bar + 1 active HoT
--- Slot 3: DPS 1 with 50% depleted shield (544/1088) + 75% threat + Energy power bar + 3 active HoTs + Pink Dispel + Danger
--- Slot 4: DPS 2 with 0% shield + 40% threat + Mana power bar
--- Slot 5: DPS 3 with 0% shield + 15% threat + Mana power bar + 1 nearly-expired HoT
+-- Extended to demonstrate My HoT visual layout (with EQ bars), Role Gutter Absorb Bar, Granular Role Gutter Threat Bar, Targeted Danger prediction, and Class Backgrounds:
+-- Slot 1: Tank (Warrior) with 100% full shield (728/728) + 100% threat + Rage power bar + 2 active HoTs + Danger
+-- Slot 2: Healer (Monk) with 0% shield + 0% threat + Mana power bar + 1 active HoT
+-- Slot 3: DPS 1 (Mage) with 50% depleted shield (544/1088) + 75% threat + Energy power bar + 3 active HoTs + Pink Dispel + Danger
+-- Slot 4: DPS 2 (Rogue) with 0% shield + 40% threat + Mana power bar
+-- Slot 5: DPS 3 (Druid) with 0% shield + 15% threat + Mana power bar + 1 nearly-expired HoT
 local TEST_ROSTER = {
 	{
-		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
+		role = "TANK", class = "WARRIOR", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
 		powerType = 1, power = 60, maxPower = 100, absorb = 728, maxAbsorb = 728, maxHealth = 100, threatPct = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
@@ -240,7 +268,7 @@ local TEST_ROSTER = {
 		danger = { icon = 136075, duration = 3.0, elapsed = 2.1 }
 	},
 	{
-		role = "HEALER", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
+		role = "HEALER", class = "MONK", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
 		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 0,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
@@ -248,7 +276,7 @@ local TEST_ROSTER = {
 		danger = nil
 	},
 	{
-		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
+		role = "DAMAGER", class = "MAGE", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
 		powerType = 3, power = 90, maxPower = 100, absorb = 544, maxAbsorb = 1088, maxHealth = 100, threatPct = 75,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
@@ -258,13 +286,13 @@ local TEST_ROSTER = {
 		danger = { icon = 136075, duration = 3.0, elapsed = 2.7 }
 	},
 	{
-		role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
+		role = "DAMAGER", class = "ROGUE", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
 		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 40,
 		hots = {},
 		danger = nil
 	},
 	{
-		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
+		role = "DAMAGER", class = "DRUID", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
 		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 15,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
@@ -612,9 +640,13 @@ local function CreateSlot(index)
 		hotIcons[i] = iconFrame
 	end
 
-	-- Thin 3px primary resource bar anchored at bottom right of role column
+	local bgTexture = f:CreateTexture(nil, "BACKGROUND")
+	bgTexture:SetAllPoints(f)
+	bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.85)
+
+	-- Thin 3px primary resource bar anchored at bottom right of role column (inset 1px further right)
 	local powerBar = CreateFrame("StatusBar", nil, f)
-	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH + 1, 1)
+	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH + 2, 1)
 	powerBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
 	powerBar:SetHeight(3)
 	powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
@@ -711,6 +743,7 @@ local function CreateSlot(index)
 
 	return {
 		frame = f,
+		bgTexture = bgTexture,
 		borderFrame = borderFrame,
 		glowLayers = glowLayers,
 		roleIcon = roleIcon,
@@ -1204,6 +1237,8 @@ local function UpdateSlot(slot, unit)
 	end
 
 	RenderRoleIcon(slot, GetUnitRole(unit))
+	local _, classToken = UnitClass(unit)
+	UpdateClassBackground(slot, classToken)
 
 	-- Pass health and maxHealth directly to the C++ StatusBar widget methods.
 	-- Modern Retail WoW unit health calls return secret values in tainted contexts,
@@ -1424,6 +1459,7 @@ local function UpdateTestSlot(slot, entry)
 	end
 	slot.frame:Show()
 	RenderRoleIcon(slot, entry.role)
+	UpdateClassBackground(slot, entry.class)
 	RenderHealthFraction(slot, entry.healthPct)
 	RenderHotIcons(slot, entry.hots)
 	UpdatePowerState(slot, entry)

@@ -17,10 +17,10 @@ Presets scale the same design proportionally rather than using different layouts
 
 The reference design is a compact horizontal frame approximately in the 200–220 px wide and \~50 px tall family before scaling. Exact implementation dimensions may be tuned during in-game testing.
 
-3\. Background  
-The frame interior is very dark / near black.
+3\. Background & Outer Border  
+The frame features a thin black outer border surrounding a dark, heavily desaturated class-coloured inner background (derived from official class hex codes and heavily darkened).
 
-The dark interior is intentionally mostly empty. It provides maximum contrast for the duration-based healing indicators and prevents health from visually competing with them.
+The class-tinted interior provides subtle unit identity while remaining dark and mostly empty to preserve maximum contrast for duration-based healing indicators.
 
 4\. Role Indicator  
 A small standard role indicator sits in a narrow gutter on the far left.
@@ -32,7 +32,7 @@ No player name is displayed. The stable party ordering and role icon provide ide
 5\. Health & Primary Resource  
 Health is NOT a full-frame fill.
 
-Health is a thin horizontal bar anchored along the bottom of the main content area (starting after the role column).
+Health is a 7px horizontal bar anchored along the bottom of the main content area (inset 1px right of `ROLE_COLUMN_WIDTH` to starting position `X = ROLE_COLUMN_WIDTH + 2`, leaving a 1px black gap above the health bar).
 
 Behaviour:  
 • Full health = full-width line.  
@@ -42,7 +42,7 @@ Behaviour:
 • The line is one solid health-level colour at a time; it is not a decorative left-to-right rainbow gradient.  
 • No health number or percentage is displayed.
 
-A very thin (3px) primary resource bar sits directly below the health bar in the main content area (starting after `ROLE_COLUMN_WIDTH`). It displays the unit's primary resource (Mana, Rage, Energy, Focus, Runic Power) coloured by power type using standard WoW power colours. It occupies the main content area only, keeping the left role icon gutter completely clear. No numeric values or text are displayed.
+A very thin (3px) primary resource bar sits directly below the health bar in the main content area (starting after `ROLE_COLUMN_WIDTH + 2`). It displays the unit's primary resource (Mana, Rage, Energy, Focus, Runic Power) coloured by power type using standard WoW power colours. It occupies the main content area only, keeping the left role icon gutter completely clear. No numeric values or text are displayed.
 
 5b\. Role Gutter Auxiliary State Bars  
 The left role-icon gutter carries two compact horizontal state bars rendered behind the role icon:  
