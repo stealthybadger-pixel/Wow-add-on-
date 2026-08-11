@@ -44,16 +44,11 @@ Behaviour:
 
 A very thin (3px) primary resource bar sits directly below the health bar in the main content area (starting after `ROLE_COLUMN_WIDTH`). It displays the unit's primary resource (Mana, Rage, Energy, Focus, Runic Power) coloured by power type using standard WoW power colours. It occupies the main content area only, keeping the left role icon gutter completely clear. No numeric values or text are displayed.
 
-5b\. Shield Absorb Bar  
-Active shield absorbs display as a horizontal near-white (cool tint `#EAF7FF`) bar strictly within the left role-icon gutter.
-
-Behaviour:  
-• The absorb bar is the exact same height as the health bar (7px).  
-• Aligned vertically with the health bar in the main content area.  
-• Shows percentage remaining of the current shield amount (not shield size relative to max health).  
-• Starts full when a shield is applied, and drains right-to-left as the shield is consumed.  
-• As absorbs are consumed, the bar retreats rightward toward the vertical divider.  
-• Renders behind the role icon so the role icon remains clear, visible, and subordinate.  
+5b\. Role Gutter Auxiliary State Bars  
+The left role-icon gutter carries two compact horizontal state bars rendered behind the role icon:  
+• **Shield Absorb Bar** (7px near-white `#EAF7FF`): Anchored at Y=5..12 (matching health bar height). Shows percentage remaining of current shield amount, draining right-to-left as damage is absorbed.  
+• **Threat Intensity Bar** (3px red/orange): Anchored at Y=1..4 (matching resource bar height). Shows graduated threat intensity (0 = empty, 1 = 1/3, 2 = 2/3, 3 = full) filling right-to-left. Subordinate to the primary red outer aggro outline.  
+• Both bars remain inside the left role column and render behind the role icon so the role icon remains clear, visible, and readable.  
 • No text or numbers are displayed.
 
 6\. Duration-Based Healing Effects  

@@ -210,16 +210,16 @@ local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Extended to demonstrate My HoT visual layout (with EQ bars), Role Gutter Absorb Bar, and Targeted Danger prediction:
--- Slot 1: Tank with 100% full shield (728/728 in role gutter) + Rage power bar + 2 active HoTs + Danger
--- Slot 2: Healer with 0% shield + Mana power bar + 1 active HoT
--- Slot 3: DPS 1 with 50% depleted shield (544/1088 in role gutter) + Energy power bar + 3 active HoTs + Pink Dispel + Danger
--- Slot 4: DPS 2 with 0% shield + Mana power bar
--- Slot 5: DPS 3 with 0% shield + Mana power bar + 1 nearly-expired HoT
+-- Extended to demonstrate My HoT visual layout (with EQ bars), Role Gutter Absorb Bar, Role Gutter Threat Bar, and Targeted Danger prediction:
+-- Slot 1: Tank with 100% full shield (728/728) + Full threat (3/3) + Rage power bar + 2 active HoTs + Danger
+-- Slot 2: Healer with 0% shield + No threat (0/3) + Mana power bar + 1 active HoT
+-- Slot 3: DPS 1 with 50% depleted shield (544/1088) + Medium threat (2/3) + Energy power bar + 3 active HoTs + Pink Dispel + Danger
+-- Slot 4: DPS 2 with 0% shield + Low threat (1/3) + Mana power bar
+-- Slot 5: DPS 3 with 0% shield + No threat (0/3) + Mana power bar + 1 nearly-expired HoT
 local TEST_ROSTER = {
 	{
 		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
-		powerType = 1, power = 60, maxPower = 100, absorb = 728, maxAbsorb = 728, maxHealth = 100,
+		powerType = 1, power = 60, maxPower = 100, absorb = 728, maxAbsorb = 728, maxHealth = 100, threat = 3,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4.2 },
@@ -228,7 +228,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "HEALER", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100,
+		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threat = 0,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
 		},
@@ -236,7 +236,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
-		powerType = 3, power = 90, maxPower = 100, absorb = 544, maxAbsorb = 1088, maxHealth = 100,
+		powerType = 3, power = 90, maxPower = 100, absorb = 544, maxAbsorb = 1088, maxHealth = 100, threat = 2,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 2.4 },
@@ -246,13 +246,13 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100,
+		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threat = 1,
 		hots = {},
 		danger = nil
 	},
 	{
 		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100,
+		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threat = 0,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
 		},
@@ -627,13 +627,31 @@ local function CreateSlot(index)
 	healthBarBg:SetAllPoints(healthBar)
 	healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
 
+	-- 3px horizontal red/orange threat intensity bar positioned strictly within the left role-icon gutter (X=1 to 45).
+	-- Aligned vertically with the 3px power bar in the main content area (Y=1 to 4 from bottom).
+	-- Reverse-filled right-to-left so threat fills from the vertical divider leftward into the gutter.
+	local threatBar = CreateFrame("StatusBar", nil, f)
+	threatBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
+	threatBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH - 1, 1)
+	threatBar:SetHeight(3)
+	threatBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	threatBar:SetStatusBarColor(1.0, 0.35, 0.0, 0.8)
+	threatBar:SetReverseFill(true)
+	threatBar:SetMinMaxValues(0, 3)
+	threatBar:SetValue(0)
+	threatBar:EnableMouse(false)
+
+	local threatBarBg = threatBar:CreateTexture(nil, "BACKGROUND")
+	threatBarBg:SetAllPoints(threatBar)
+	threatBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.6)
+
 	-- 7px horizontal near-white absorb/shield bar positioned strictly within the left role-icon gutter (X=1 to 45).
-	-- Aligned vertically with the 7px health bar in the main content area (Y=5 to 12 from bottom).
+	-- Anchored directly above threatBar (Y=5 to 12 from bottom), aligned vertically with the 7px health bar.
 	-- Reverse-filled right-to-left so shields retreat rightward toward the vertical divider.
 	-- Rendered behind the role icon so role icons remain clear and readable.
 	local absorbBar = CreateFrame("StatusBar", nil, f)
-	absorbBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 5)
-	absorbBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH - 1, 5)
+	absorbBar:SetPoint("BOTTOMLEFT", threatBar, "TOPLEFT", 0, 1)
+	absorbBar:SetPoint("BOTTOMRIGHT", threatBar, "TOPRIGHT", 0, 1)
 	absorbBar:SetHeight(7)
 	absorbBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	absorbBar:SetStatusBarColor(0.92, 0.97, 1.0, 0.65)
@@ -691,6 +709,8 @@ local function CreateSlot(index)
 		powerBarBg = powerBarBg,
 		absorbBar = absorbBar,
 		absorbBarBg = absorbBarBg,
+		threatBar = threatBar,
+		threatBarBg = threatBarBg,
 		dangerContainer = dangerContainer,
 		dangerIcon = dangerIcon,
 		dangerBar = dangerBar,
@@ -1075,6 +1095,35 @@ local function UpdateAbsorbState(slot, entryAbsorb)
 	slot.absorbBar:Show()
 end
 
+local function UpdateThreatState(slot, entry)
+	if not slot or not slot.threatBar then return end
+
+	if ns.testModeActive and entry then
+		local threatVal = entry.threat or 0
+		slot.threatBar:SetMinMaxValues(0, 3)
+		slot.threatBar:SetValue(threatVal)
+		slot.threatBar:Show()
+		return
+	end
+
+	local unit = slot.unit
+	if not unit or not UnitExists(unit) then
+		slot.threatBar:SetMinMaxValues(0, 3)
+		slot.threatBar:SetValue(0)
+		return
+	end
+
+	local status = UnitThreatSituation(unit)
+	if status and status > 0 then
+		slot.threatBar:SetMinMaxValues(0, 3)
+		slot.threatBar:SetValue(status)
+	else
+		slot.threatBar:SetMinMaxValues(0, 3)
+		slot.threatBar:SetValue(0)
+	end
+	slot.threatBar:Show()
+end
+
 local function UpdateSlot(slot, unit)
 	slot.unit = unit
 	if not unit or not UnitExists(unit) then
@@ -1112,6 +1161,7 @@ local function UpdateSlot(slot, unit)
 	RenderHotIcons(slot, GetUnitPlayerHoTs(unit))
 	UpdatePowerState(slot, nil)
 	UpdateAbsorbState(slot, nil)
+	UpdateThreatState(slot, nil)
 
 	local isDead = UnitIsDead(unit)
 	local inRange = isDead or UnitIsInRange(unit)
@@ -1278,6 +1328,7 @@ local function UpdateTestSlot(slot, entry)
 	RenderHotIcons(slot, entry.hots)
 	UpdatePowerState(slot, entry)
 	UpdateAbsorbState(slot, entry)
+	UpdateThreatState(slot, entry)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
 
 	if entry.danger then
