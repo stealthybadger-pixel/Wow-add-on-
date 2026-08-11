@@ -29,6 +29,19 @@ local ROLE_PRIORITY = {
 
 local ROLE_ICON_TEXTURE = "Interface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES"
 
+-- Reusable C_CurveUtil color curve for native C++ health color evaluation
+local healthColorCurve = nil
+pcall(function()
+	if C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor and Enum and Enum.LuaCurveType then
+		local curve = C_CurveUtil.CreateColorCurve()
+		curve:SetType(Enum.LuaCurveType.Linear)
+		curve:AddPoint(0.0, CreateColor(0.9, 0.1, 0.1, 1.0)) -- Red at 0%
+		curve:AddPoint(0.5, CreateColor(1.0, 0.8, 0.0, 1.0)) -- Yellow at 50%
+		curve:AddPoint(1.0, CreateColor(0.1, 0.9, 0.1, 1.0)) -- Green at 100%
+		healthColorCurve = curve
+	end
+end)
+
 local ROLE_ATLAS_MAP = {
 	TANK = "roleicon-tiny-tank",
 	HEALER = "roleicon-tiny-healer",
@@ -1203,15 +1216,36 @@ local function UpdateSlot(slot, unit)
 
 		-- Secret-safe health percentage calculation & color shift
 		local colorSet = false
-		pcall(function()
-			local pct = health / maxHealth
-			if pct and pct >= 0 and pct <= 1 then
-				local r, g, b = GetHealthColor(pct)
-				slot.healthBar:SetStatusBarColor(r, g, b, 1.0)
-				colorSet = true
-			end
-		end)
+
+		-- Method 1: Native C++ UnitHealthPercent + C_CurveUtil ColorCurve
+		if UnitHealthPercent and healthColorCurve then
+			pcall(function()
+				local color = UnitHealthPercent(unit, true, healthColorCurve)
+				if color and color.GetRGBA then
+					slot.healthBar:SetStatusBarColor(color:GetRGBA())
+					colorSet = true
+					ns.healthCurveActive = true
+					ns.liveHealthColorRestricted = false
+				end
+			end)
+		end
+
+		-- Method 2: Secret-safe Lua health percentage division fallback
 		if not colorSet then
+			pcall(function()
+				local pct = health / maxHealth
+				if pct and pct >= 0 and pct <= 1 then
+					local r, g, b = GetHealthColor(pct)
+					slot.healthBar:SetStatusBarColor(r, g, b, 1.0)
+					colorSet = true
+					ns.healthCurveActive = false
+					ns.liveHealthColorRestricted = false
+				end
+			end)
+		end
+
+		if not colorSet then
+			ns.healthCurveActive = false
 			ns.liveHealthColorRestricted = true
 			slot.healthBar:SetStatusBarColor(0.1, 0.9, 0.1, 1.0)
 		end
@@ -1839,8 +1873,10 @@ function ns.PrintStatus()
 	print(string.format("  Addon Loaded: %s", tostring(ns.db ~= nil)))
 	print(string.format("  Test Mode Active: %s", tostring(ns.testModeActive)))
 	print(string.format("  Blizzard Party Frame Suppression: %s", (ns.db and ns.db.hideBlizzardPartyFrames) and "Active" or "Disabled"))
-	if ns.liveHealthColorRestricted then
-		print("  Live Health Bar Colour: |cffffaa00Static Green|r (Retail secret-value restriction blocks Lua health percentage division)")
+	if ns.healthCurveActive then
+		print("  Live Health Bar Colour: |cff00ff00UnitHealthPercent colour curve active|r")
+	elseif ns.liveHealthColorRestricted then
+		print("  Live Health Bar Colour: |cffffaa00Static Green due to Retail restriction|r")
 	else
 		print("  Live Health Bar Colour: |cff00ff00Dynamic Green->Yellow->Red interpolation active|r")
 	end
