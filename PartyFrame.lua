@@ -219,7 +219,7 @@ local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 local TEST_ROSTER = {
 	{
 		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
-		powerType = 1, power = 60, maxPower = 100,
+		powerType = 1, power = 60, maxPower = 100, absorb = 40, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4.2 },
@@ -228,7 +228,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "HEALER", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 85, maxPower = 100,
+		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
 		},
@@ -236,7 +236,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
-		powerType = 3, power = 90, maxPower = 100,
+		powerType = 3, power = 90, maxPower = 100, absorb = 20, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 2.4 },
@@ -246,13 +246,13 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 100, maxPower = 100,
+		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxHealth = 100,
 		hots = {},
 		danger = nil
 	},
 	{
 		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 40, maxPower = 100,
+		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
 		},
@@ -627,6 +627,25 @@ local function CreateSlot(index)
 	healthBarBg:SetAllPoints(healthBar)
 	healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
 
+	-- 7px horizontal cyan absorb/shield bar positioned strictly within the left role-icon gutter (X=1 to 45).
+	-- Aligned vertically with the 7px health bar in the main content area (Y=5 to 12 from bottom).
+	-- Reverse-filled right-to-left so shields retreat rightward toward the vertical divider.
+	-- Rendered behind the role icon so role icons remain clear and readable.
+	local absorbBar = CreateFrame("StatusBar", nil, f)
+	absorbBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 5)
+	absorbBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH - 1, 5)
+	absorbBar:SetHeight(7)
+	absorbBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	absorbBar:SetStatusBarColor(0.2, 0.8, 1.0, 0.65)
+	absorbBar:SetReverseFill(true)
+	absorbBar:SetMinMaxValues(0, 1)
+	absorbBar:SetValue(0)
+	absorbBar:EnableMouse(false)
+
+	local absorbBarBg = absorbBar:CreateTexture(nil, "BACKGROUND")
+	absorbBarBg:SetAllPoints(absorbBar)
+	absorbBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.6)
+
 	-- Incoming Danger Indicator Container (icon + horizontal cast bar) placed in central main area
 	local dangerContainer = CreateFrame("Frame", nil, f)
 	dangerContainer:SetSize(76, 16)
@@ -670,6 +689,8 @@ local function CreateSlot(index)
 		healthBarBg = healthBarBg,
 		powerBar = powerBar,
 		powerBarBg = powerBarBg,
+		absorbBar = absorbBar,
+		absorbBarBg = absorbBarBg,
 		dangerContainer = dangerContainer,
 		dangerIcon = dangerIcon,
 		dangerBar = dangerBar,
@@ -987,6 +1008,43 @@ local function UpdatePowerState(slot, entryPower)
 	slot.powerBar:Show()
 end
 
+local function UpdateAbsorbState(slot, entryAbsorb)
+	if not slot or not slot.absorbBar then return end
+
+	if ns.testModeActive and entryAbsorb then
+		if entryAbsorb.absorb and entryAbsorb.maxHealth then
+			slot.absorbBar:SetMinMaxValues(0, entryAbsorb.maxHealth)
+			slot.absorbBar:SetValue(entryAbsorb.absorb)
+		else
+			slot.absorbBar:SetMinMaxValues(0, 1)
+			slot.absorbBar:SetValue(0)
+		end
+		slot.absorbBar:Show()
+		return
+	end
+
+	local unit = slot.unit
+	if not unit or not UnitExists(unit) then
+		slot.absorbBar:SetMinMaxValues(0, 1)
+		slot.absorbBar:SetValue(0)
+		return
+	end
+
+	-- Pass absorbs and maxHealth directly into C++ StatusBar widget methods.
+	-- No Lua arithmetic (/), zero-comparisons (> 0), or percentage math on secret values.
+	local maxHealth = UnitHealthMax(unit)
+	local absorbs = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)
+
+	if maxHealth and absorbs then
+		slot.absorbBar:SetMinMaxValues(0, maxHealth)
+		slot.absorbBar:SetValue(absorbs)
+	else
+		slot.absorbBar:SetMinMaxValues(0, 1)
+		slot.absorbBar:SetValue(0)
+	end
+	slot.absorbBar:Show()
+end
+
 local function UpdateSlot(slot, unit)
 	slot.unit = unit
 	if not unit or not UnitExists(unit) then
@@ -1023,6 +1081,7 @@ local function UpdateSlot(slot, unit)
 
 	RenderHotIcons(slot, GetUnitPlayerHoTs(unit))
 	UpdatePowerState(slot, nil)
+	UpdateAbsorbState(slot, nil)
 
 	local isDead = UnitIsDead(unit)
 	local inRange = isDead or UnitIsInRange(unit)
@@ -1188,6 +1247,7 @@ local function UpdateTestSlot(slot, entry)
 	RenderHealthFraction(slot, entry.healthPct)
 	RenderHotIcons(slot, entry.hots)
 	UpdatePowerState(slot, entry)
+	UpdateAbsorbState(slot, entry)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
 
 	if entry.danger then
@@ -1519,6 +1579,7 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("UNIT_CONNECTION")
 	watcher:RegisterEvent("UNIT_HEALTH")
 	watcher:RegisterEvent("UNIT_MAXHEALTH")
+	watcher:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED")
 	watcher:RegisterEvent("UNIT_POWER_UPDATE")
 	watcher:RegisterEvent("UNIT_POWER_FREQUENT")
 	watcher:RegisterEvent("UNIT_MAXPOWER")
@@ -1560,7 +1621,7 @@ function ns.InitializePartyFrame()
 		elseif event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "EDIT_MODE_LAYOUTS_UPDATED" or event == "COMPACT_UNIT_FRAME_PROFILES_LOADED" then
 			ns.ApplyBlizzardPartyFrameSuppression()
 			ns.RefreshRoster()
-		elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_POWER_UPDATE" or event == "UNIT_POWER_FREQUENT" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
+		elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_POWER_UPDATE" or event == "UNIT_POWER_FREQUENT" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
 			ns.RefreshUnitState(unit)
 		elseif event == "UNIT_THREAT_LIST_UPDATE" then
 			for i = 1, MAX_SLOTS do
