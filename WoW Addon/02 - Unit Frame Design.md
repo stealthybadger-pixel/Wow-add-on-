@@ -32,7 +32,7 @@ No player name is displayed. The stable party ordering and role icon provide ide
 5\. Health & Primary Resource  
 Health is NOT a full-frame fill.
 
-Health is a 7px horizontal bar anchored along the bottom of the main content area (inset 1px right of `ROLE_COLUMN_WIDTH` to starting position `X = ROLE_COLUMN_WIDTH + 2`, leaving a 1px black gap above the health bar).
+Health is a 7px horizontal bar anchored along the bottom of the main content area (starting immediately after the role-gutter divider at `X = ROLE_COLUMN_WIDTH + 1`, leaving a 1px black gap above the health bar).
 
 Behaviour:  
 • Full health = full-width line.  
@@ -42,7 +42,7 @@ Behaviour:
 • The line is one solid health-level colour at a time; it is not a decorative left-to-right rainbow gradient.  
 • No health number or percentage is displayed.
 
-A very thin (3px) primary resource bar sits directly below the health bar in the main content area (starting after `ROLE_COLUMN_WIDTH + 2`). It displays the unit's primary resource (Mana, Rage, Energy, Focus, Runic Power) coloured by power type using standard WoW power colours. It occupies the main content area only, keeping the left role icon gutter completely clear. No numeric values or text are displayed.
+A very thin (3px) primary resource bar sits directly below the health bar in the main content area (starting at `X = ROLE_COLUMN_WIDTH + 1`). It displays the unit's primary resource (Mana, Rage, Energy, Focus, Runic Power) coloured by power type using standard WoW power colours. It occupies the main content area only, keeping the left role icon gutter completely clear. No numeric values or text are displayed.
 
 5b\. Role Gutter Auxiliary State Bars  
 The left role-icon gutter carries two compact horizontal state bars rendered behind the role icon:  
