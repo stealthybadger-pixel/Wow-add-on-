@@ -90,19 +90,13 @@ Build:
 
 Acceptance: configuration can be completed without joining a real party.
 
-PHASE 6 — IN-GAME POLISH  
-Test in real dungeon play.
-
-Tune only evidence-based usability issues such as:  
-• Frame dimensions.  
-• Gap size.  
-• Health-line thickness.  
-• HoT icon/bar width and spacing.  
-• Effect colours.  
-• Aggro/dispel outline strength.  
-• Range/death dimming strength.
-
-Do not add features merely because conventional unit-frame addons have them.
+PHASE 6 — COMPACT FRAME VISUAL ADDITIONS & REFINEMENTS  
+Implemented:  
+• Exhaustive multi-frame Blizzard party suppression (PartyFrame, CompactPartyFrame, CompactRaidFrameContainer, Pool Members).  
+• Thin primary resource bar (Mana, Energy, Rage, Focus, Runic Power, etc.) underneath health.  
+• Class-colored dark desaturated backgrounds (`RAID_CLASS_COLORS` tinted).  
+• Cyan absorb/shield overlay (supporting Life Cocoon, PW:Shield, etc.).  
+• Active self-defensive mitigation icons (Barkskin, Shield Wall, Divine Shield, Ice Block, Fortifying Brew, Astral Shift, etc.).  
 
 OUT OF V1  
 • Raid frames.  
@@ -110,11 +104,8 @@ OUT OF V1
 • Other healer classes.  
 • General-purpose unit frames.  
 • Player/target/focus/boss replacement frames.  
-• Names and numeric health.  
-• Mana/resources.  
-• Shields/absorbs.  
-• Generic buff/debuff panels.  
-• HoT expiry prompts.  
+• Names and numeric health text.  
+• Generic debuff panels.  
 • Mouse-wheel bindings.  
 • AFK/disconnect indicators.  
 • Per-character profiles.  

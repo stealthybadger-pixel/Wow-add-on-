@@ -1,10 +1,16 @@
-# Testing MistPanel (Phase 2)
+# Testing MistPanel (Phase 6 Additions)
 
-Phase 2 adds **combat visual states**: red outer outline for aggro, pink outer outline for actionable dispel (taking priority over red), out-of-range dimming/desaturation, and dead heavy dimming/grey state. Dispel detection is talent-dependent at runtime (Detox for Magic; Improved Detox for Poison & Disease).
+MistPanel provides a sleek, high-contrast, secure 5-player healer unit frame panel with:
+- **Exhaustive Blizzard Party Frame Suppression** (PartyFrame, CompactPartyFrame, CompactRaidFrameContainer, Pool Members).
+- **Secure Click-Casting & Clique Compatibility**.
+- **Alt + Left Click Drag Positioning & Persistence**.
+- **Spec-Aware Mistweaver HoTs** with vertical EQ duration bars.
+- **Thin Primary Resource Bar** (Mana, Energy, Rage, Focus, Runic Power, etc.) underneath health.
+- **Dark Desaturated Class-Specific Backgrounds** (`RAID_CLASS_COLORS` tinted).
+- **Cyan Absorb / Shield Overlay** (supporting Life Cocoon, Power Word: Shield, etc.).
+- **Active Self-Defensive Mitigation Icons** (Barkskin, Shield Wall, Divine Shield, Ice Block, Fortifying Brew, Astral Shift, etc.).
 
-There are **no** HoT bars yet (Phase 3) and **no** click-casting yet (Phase 4).
-
-A `/mistpanel test` developer test mode is included so most of this checklist can be done solo — see section 2.1.
+A `/mistpanel test` developer test mode is included so all visual states can be verified solo — see section 2.1.
 
 ## 1. Install / live-dev setup
 
@@ -17,15 +23,22 @@ After edits, test in-game with `/reload`.
 Log in on your Mistweaver Monk.
 
 ### 2.1 Developer test mode (solo verification)
-`/mistpanel test` toggles a simulated 5-player roster that explicitly demonstrates all 5 core non-HoT visual states:
+`/mistpanel test` toggles a simulated 5-player roster that explicitly demonstrates all visual features:
 
-- **Slot 1 (Tank)**: Aggro state — bright RED outer outline, 75% health line.
-- **Slot 2 (Healer)**: Normal state — dark border, 100% health line.
-- **Slot 3 (DPS 1)**: Actionable Dispel state — bright PINK outer outline. (Note: `aggro` is also set to true on this slot in test mode to verify that pink dispel priority overrides red aggro outline).
-- **Slot 4 (DPS 2)**: Out of Range state — frame opacity dimmed (0.45 alpha), role icon desaturated, 30% health line.
-- **Slot 5 (DPS 3)**: Dead state — heavily dimmed frame (0.35 alpha), role icon desaturated, 0% health line.
+- **Slot 1 (Tank - WARRIOR)**: Red aggro outline, Rage power bar, Shield Wall gold defensive icon, 70% health, My HoTs, Incoming Danger cast.
+- **Slot 2 (Healer - MONK)**: Dark Monk background, Mana power bar, Cyan Life Cocoon absorb overlay, 100% health, My HoTs.
+- **Slot 3 (DPS 1 - DRUID)**: Pink Dispel outline, Energy power bar, Barkskin gold defensive icon, 3 HoTs.
+- **Slot 4 (DPS 2 - MAGE)**: Dark Mage background, Mana power bar, Ice Block gold defensive icon.
+- **Slot 5 (DPS 3 - PRIEST)**: Low health (10%), Mana power bar, nearly expired HoT.
 
 Toggle `/mistpanel test` off to return to your live roster.
+
+### 2.2 Blizzard Frame Suppression Audit (Test with ElvUI Disabled)
+1. **Disable ElvUI completely** in the AddOn menu and run `/reload`.
+2. Join a party. Verify **zero Blizzard default party frames** are visible.
+3. Type `/mistpanel debugblizzard` (or `/mistpanel blizzdebug`) in chat:
+   Verify every frame object (`PartyFrame`, `CompactPartyFrame`, `CompactRaidFrameContainer`, `CompactRaidFrame1..5`) returns `[not visible]`.
+4. Re-enable ElvUI if desired to verify co-existence.
 
 ### 2.2 Hidden while solo
 - Solo, out of a group, with test mode **off**: the panel should be

@@ -15,12 +15,12 @@ Three presets: Small / Medium / Large.
 
 Presets scale the same design proportionally rather than using different layouts. Health-line thickness, icons and other visual elements scale with the frame.
 
-The reference design is a compact horizontal frame approximately in the 200–220 px wide and \~50 px tall family before scaling. Exact implementation dimensions may be tuned during in-game testing.
+The reference design is a compact horizontal frame approximately in the 200–220 px wide and ~50 px tall family before scaling. Exact implementation dimensions may be tuned during in-game testing.
 
 3\. Background  
-The frame interior is very dark / near black.
+The frame interior features a subtle, dark, desaturated class-specific tint (`RAID_CLASS_COLORS` desaturated and darkened to ~18% brightness + 4% base dark tint).
 
-The dark interior is intentionally mostly empty. It provides maximum contrast for the duration-based healing indicators and prevents health from visually competing with them.
+This class tint provides clear visual class context while maintaining maximum contrast for health bars, resource bars, HoTs, role icons, and combat state outlines.
 
 4\. Role Indicator  
 A small standard role indicator sits in a narrow gutter on the far left.
@@ -29,36 +29,30 @@ Roles shown: Tank, Healer, DPS.
 
 No player name is displayed. The stable party ordering and role icon provide identity sufficient for this personal use case.
 
-5\. Health  
-Health is NOT a full-frame fill.
+5\. Health & Primary Resource Bar  
+Health is a 10px horizontal bar anchored along the bottom of the unit frame.
 
-Health is one thin horizontal bar anchored along the bottom of the unit frame.
+Directly underneath the health bar sits a thin (3px) primary resource bar displaying each unit's active resource type (Mana, Energy, Rage, Focus, Runic Power, etc.).
+
+Absorbs / Shields:
+Incoming shield absorbs (such as Life Cocoon or Power Word: Shield) render as a semi-transparent cyan overlay directly on top of the health bar.
 
 Behaviour:  
-• Full health \= full-width line.  
+• Full health = full-width green line.  
 • Damage causes the line to retreat from right to left.  
-• Length is the primary health measure.  
-• Colour also communicates health state, moving from green at high health toward red at low/critical health.  
-• The line is one health-state colour at a time; it is not a decorative left-to-right gradient.  
-• No health number or percentage is displayed.
+• Primary resource bar sits below health as a thin subordinate indicator.  
+• Absorbs overlay on the health bar dynamically.  
+• No health, power, or absorb numbers are displayed.
 
-6\. Duration-Based Healing Effects  
-Only the user's own healing effects with a duration are visualized.
+6\. Duration-Based Healing Effects & Defensive Mitigation Icons  
+Only the user's own healing effects with a duration are visualized via vertical duration bars (EQ bars) positioned directly above 11x11 spell icons.
 
-Each active effect is represented as one vertical instrument:  
-• Genuine spell icon at the bottom.  
-• A coloured vertical duration bar rising directly above the icon.  
-• Full/tall bar \= high remaining duration.  
-• Bar progressively drops toward the icon as duration expires.  
-• No numeric timer.  
-• When the effect expires, both icon and bar disappear completely.  
-• When an effect is inactive, NOTHING is shown: no track, placeholder, dim icon or label.
+Active Self-Defensive Mitigation Icons:
+When a party member activates a major self-defensive cooldown (e.g. Barkskin, Shield Wall, Divine Shield, Ice Block, Fortifying Brew, Astral Shift), a small 14x14px defensive icon with a subtle gold border appears in the upper right main area of their frame for the duration of the buff.
 
 Effects dynamically pack from left to right. There are no permanently visible empty HoT slots.
 
 Ordering is predetermined by spell/effect rather than cast order, so the display remains spatially stable. Active effects close gaps while retaining that predetermined ordering.
-
-When an existing effect is refreshed, its existing indicator remains in its ordered position and its vertical bar returns to the refreshed remaining duration.
 
 All relevant duration-based Mistweaver healing effects that can coexist may be displayed; there is no arbitrary four-effect cap.
 

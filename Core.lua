@@ -99,6 +99,7 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		print("|cff33ff99MistPanel|r: Danger prediction debug logging " .. (ns.debugDanger and "|cff00ff00ENABLED|r" or "|cffff0000DISABLED|r") .. ".")
 		ns.RefreshRoster()
 	elseif cmd == "predicttest" then
+		print("|cff33ff99MistPanel|r: Target prediction is parked due to Retail WoW C++ secret-boolean restrictions.")
 		if ns.RunPredictTest then
 			ns.RunPredictTest()
 		end

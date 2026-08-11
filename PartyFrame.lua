@@ -530,7 +530,7 @@ local function CreateSlot(index)
 	-- Subtle vertical divider separating role column from main area
 	local divider = f:CreateTexture(nil, "ARTWORK")
 	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -1)
-	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 1)
+	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 4)
 	divider:SetWidth(1)
 	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
@@ -541,10 +541,8 @@ local function CreateSlot(index)
 	for i = 1, MAX_HOTS do
 		local posX = startX + (i - 1) * (HOT_ICON_SIZE + iconGap)
 
-		-- Clean borderless vertical duration bar (EQ bar) placed DIRECTLY ABOVE the 11x11 HoT icon
-		-- 2px top clearance below top frame edge -> Y = -3px
 		local durationBar = CreateFrame("StatusBar", nil, f)
-		durationBar:SetSize(HOT_ICON_SIZE, HOT_BAR_HEIGHT)
+		durationBar:SetSize(HOT_ICON_SIZE, 30) -- Shrunk by 2px to accommodate thin primary resource bar
 		durationBar:SetPoint("TOPLEFT", f, "TOPLEFT", posX, -3)
 		durationBar:SetOrientation("VERTICAL")
 		durationBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
@@ -555,8 +553,6 @@ local function CreateSlot(index)
 		durationBarBg:SetAllPoints(durationBar)
 		durationBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
 
-		-- 11x11 HoT icon frame placed immediately BELOW the duration bar with 1px gap
-		-- 1px bottom clearance above health bar -> Y = -49px
 		local iconFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
 		iconFrame:SetSize(HOT_ICON_SIZE, HOT_ICON_SIZE)
 		iconFrame:SetPoint("TOPLEFT", durationBar, "BOTTOMLEFT", 0, -1)
@@ -595,11 +591,25 @@ local function CreateSlot(index)
 		hotIcons[i] = iconFrame
 	end
 
-	-- Thin bottom health line
+	-- Thin 3px primary resource bar anchored at bottom
+	local powerBar = CreateFrame("StatusBar", nil, f)
+	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
+	powerBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
+	powerBar:SetHeight(3)
+	powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	powerBar:SetMinMaxValues(0, 1)
+	powerBar:SetValue(1)
+	powerBar:EnableMouse(false)
+
+	local powerBarBg = powerBar:CreateTexture(nil, "BACKGROUND")
+	powerBarBg:SetAllPoints(powerBar)
+	powerBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
+
+	-- 10px health bar anchored directly above powerBar
 	local healthBar = CreateFrame("StatusBar", nil, f)
-	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
-	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
-	healthBar:SetHeight(HEALTH_BAR_HEIGHT)
+	healthBar:SetPoint("BOTTOMLEFT", powerBar, "TOPLEFT", 0, 1)
+	healthBar:SetPoint("BOTTOMRIGHT", powerBar, "TOPRIGHT", 0, 1)
+	healthBar:SetHeight(10)
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	healthBar:SetMinMaxValues(0, 1)
 	healthBar:SetValue(1)
@@ -608,6 +618,32 @@ local function CreateSlot(index)
 	local healthBarBg = healthBar:CreateTexture(nil, "BACKGROUND")
 	healthBarBg:SetAllPoints(healthBar)
 	healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
+
+	-- Cyan semi-transparent absorb/shield overlay bar rendered directly on healthBar
+	local absorbBar = CreateFrame("StatusBar", nil, healthBar)
+	absorbBar:SetAllPoints(healthBar)
+	absorbBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	absorbBar:SetStatusBarColor(0.2, 0.8, 1.0, 0.65)
+	absorbBar:SetMinMaxValues(0, 1)
+	absorbBar:SetValue(0)
+	absorbBar:EnableMouse(false)
+	absorbBar:Hide()
+
+	-- Active self-defensive mitigation icon container (upper right main area)
+	local defensiveFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	defensiveFrame:SetSize(14, 14)
+	defensiveFrame:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -4)
+	defensiveFrame:EnableMouse(false)
+	defensiveFrame:SetBackdrop({
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	defensiveFrame:SetBackdropBorderColor(1.0, 0.84, 0.0, 0.9) -- Subtle gold defensive border
+
+	local defensiveIcon = defensiveFrame:CreateTexture(nil, "ARTWORK")
+	defensiveIcon:SetAllPoints(defensiveFrame)
+	defensiveIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	defensiveFrame:Hide()
 
 	-- Incoming Danger Indicator Container (icon + horizontal cast bar) placed in central main area
 	local dangerContainer = CreateFrame("Frame", nil, f)
@@ -650,6 +686,11 @@ local function CreateSlot(index)
 		hotIcons = hotIcons,
 		healthBar = healthBar,
 		healthBarBg = healthBarBg,
+		powerBar = powerBar,
+		powerBarBg = powerBarBg,
+		absorbBar = absorbBar,
+		defensiveFrame = defensiveFrame,
+		defensiveIcon = defensiveIcon,
 		dangerContainer = dangerContainer,
 		dangerIcon = dangerIcon,
 		dangerBar = dangerBar,
@@ -918,8 +959,154 @@ local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 		slot.healthBar:SetAlpha(0.45)
 	else
 		slot.frame:SetAlpha(1.0)
-		slot.roleIcon:SetDesaturated(false)
+				slot.roleIcon:SetDesaturated(false)
 		slot.healthBar:SetAlpha(1.0)
+	end
+end
+
+local function UpdateClassBackground(slot, entryClass, isDead, inRange)
+	local color = nil
+	if ns.testModeActive and entryClass then
+		color = RAID_CLASS_COLORS[entryClass]
+	elseif slot.unit and UnitExists(slot.unit) then
+		local _, classFileName = UnitClass(slot.unit)
+		if classFileName then
+			color = RAID_CLASS_COLORS[classFileName]
+		end
+	end
+
+	if not color then
+		color = { r = 0.2, g = 0.2, b = 0.2 }
+	end
+
+	-- Dark desaturated class tint (maintains UI widget readability)
+	local r = color.r * 0.18 + 0.04
+	local g = color.g * 0.18 + 0.04
+	local b = color.b * 0.18 + 0.04
+	local alpha = 0.92
+
+	if isDead or not inRange then
+		r = r * 0.4
+		g = g * 0.4
+		b = b * 0.4
+	end
+
+	slot.frame:SetBackdropColor(r, g, b, alpha)
+end
+
+local function UpdatePowerState(slot, entryPower)
+	if not slot or not slot.powerBar then return end
+
+	if ns.testModeActive and entryPower then
+		slot.powerBar:SetMinMaxValues(0, entryPower.maxPower or 100)
+		slot.powerBar:SetValue(entryPower.power or 0)
+		local color = PowerBarColor[entryPower.powerType] or PowerBarColor[0]
+		if color then
+			slot.powerBar:SetStatusBarColor(color.r, color.g, color.b, 0.9)
+		else
+			slot.powerBar:SetStatusBarColor(0.0, 0.5, 1.0, 0.9)
+		end
+		slot.powerBar:Show()
+		return
+	end
+
+	local unit = slot.unit
+	if not unit or not UnitExists(unit) then
+		slot.powerBar:Hide()
+		return
+	end
+
+	local pType, pToken = UnitPowerType(unit)
+	local curPower = UnitPower(unit, pType)
+	local maxPower = UnitPowerMax(unit, pType)
+
+	if maxPower and maxPower > 0 then
+		slot.powerBar:SetMinMaxValues(0, maxPower)
+		slot.powerBar:SetValue(curPower or 0)
+		local color = PowerBarColor[pToken] or PowerBarColor[pType] or { r = 0.0, g = 0.5, b = 1.0 }
+		slot.powerBar:SetStatusBarColor(color.r, color.g, color.b, 0.9)
+		slot.powerBar:Show()
+	else
+		slot.powerBar:Hide()
+	end
+end
+
+local function UpdateAbsorbState(slot, entryAbsorb)
+	if not slot or not slot.absorbBar then return end
+
+	if ns.testModeActive then
+		if entryAbsorb and entryAbsorb > 0 then
+			slot.absorbBar:SetMinMaxValues(0, 100)
+			slot.absorbBar:SetValue(entryAbsorb)
+			slot.absorbBar:Show()
+		else
+			slot.absorbBar:Hide()
+		end
+		return
+	end
+
+	local unit = slot.unit
+	if not unit or not UnitExists(unit) or not UnitGetTotalAbsorbs then
+		slot.absorbBar:Hide()
+		return
+	end
+
+	local absorbs = UnitGetTotalAbsorbs(unit) or 0
+	local maxHealth = UnitHealthMax(unit) or 1
+
+	if absorbs > 0 and maxHealth > 0 then
+		slot.absorbBar:SetMinMaxValues(0, maxHealth)
+		slot.absorbBar:SetValue(absorbs)
+		slot.absorbBar:Show()
+	else
+		slot.absorbBar:Hide()
+	end
+end
+
+local function UpdateDefensiveState(slot, entryDefensive)
+	if not slot or not slot.defensiveFrame then return end
+
+	if ns.testModeActive then
+		if entryDefensive and entryDefensive.icon then
+			slot.defensiveIcon:SetTexture(entryDefensive.icon)
+			slot.defensiveFrame:Show()
+		else
+			slot.defensiveFrame:Hide()
+		end
+		return
+	end
+
+	local unit = slot.unit
+	if not unit or not UnitExists(unit) then
+		slot.defensiveFrame:Hide()
+		return
+	end
+
+	local foundIcon = nil
+	if AuraUtil and AuraUtil.FindAura then
+		AuraUtil.FindAura(function(name, icon, count, debuffType, duration, expirationTime, source, isStealable, nameplateShowPersonal, spellId)
+			if spellId and DEFENSIVE_AURA_IDS[spellId] then
+				foundIcon = icon
+				return true
+			end
+			return false
+		end, unit, "HELPFUL")
+	elseif C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+		for index = 1, 40 do
+			local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
+			if not aura then break end
+			if aura.spellId and DEFENSIVE_AURA_IDS[aura.spellId] then
+				foundIcon = aura.icon
+				break
+			end
+		end
+	end
+
+	if foundIcon then
+		slot.defensiveIcon:SetTexture(foundIcon)
+		slot.defensiveFrame:Show()
+	else
+		slot.defensiveFrame:Hide()
 	end
 end
 
@@ -963,6 +1150,11 @@ local function UpdateSlot(slot, unit)
 	local inRange = isDead or UnitIsInRange(unit)
 	local hasDispel = not isDead and UnitHasDispellableAura(unit)
 	local hasAggro = not isDead and UnitHasAggro(unit)
+
+	UpdateClassBackground(slot, nil, isDead, inRange)
+	UpdatePowerState(slot, nil)
+	UpdateAbsorbState(slot, nil)
+	UpdateDefensiveState(slot, nil)
 
 	RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 end
@@ -1122,6 +1314,10 @@ local function UpdateTestSlot(slot, entry)
 	RenderRoleIcon(slot, entry.role)
 	RenderHealthFraction(slot, entry.healthPct)
 	RenderHotIcons(slot, entry.hots)
+	UpdateClassBackground(slot, entry.class, entry.dead, entry.inRange)
+	UpdatePowerState(slot, entry)
+	UpdateAbsorbState(slot, entry.absorb)
+	UpdateDefensiveState(slot, entry.defensive)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
 
 	if entry.danger then
@@ -1255,6 +1451,7 @@ local AUDIT_FRAME_SPECS = {
 	{ name = "PartyMemberFrame2", label = "PartyMemberFrame2 (Legacy Standard Frame 2)" },
 	{ name = "PartyMemberFrame3", label = "PartyMemberFrame3 (Legacy Standard Frame 3)" },
 	{ name = "PartyMemberFrame4", label = "PartyMemberFrame4 (Legacy Standard Frame 4)" },
+	{ name = "PartyMemberBackground", label = "PartyMemberBackground" },
 }
 
 local function ResolveFrameObject(nameStr)
@@ -1280,6 +1477,11 @@ local function SuppressSingleFrame(frame)
 	if not frame then return end
 	pcall(function()
 		if not InCombatLockdown() then
+			frame:UnregisterAllEvents()
+			frame:Hide()
+			if HiddenFrame and frame ~= HiddenFrame then
+				frame:SetParent(HiddenFrame)
+			end
 			RegisterStateDriver(frame, "visibility", "hide")
 		end
 	end)
@@ -1290,6 +1492,9 @@ local function UnsuppressSingleFrame(frame)
 	pcall(function()
 		if not InCombatLockdown() then
 			UnregisterStateDriver(frame, "visibility")
+			if frame:GetParent() == HiddenFrame then
+				frame:SetParent(UIParent)
+			end
 		end
 	end)
 end
@@ -1309,16 +1514,23 @@ function ns.ApplyBlizzardPartyFrameSuppression()
 
 	ns.pendingBlizzardSuppression = false
 
-	-- 1. Modern Retail PartyFrame & Member Frames
+	-- 1. Modern Retail PartyFrame & Dynamic FramePool Members
 	if PartyFrame then
 		SuppressSingleFrame(PartyFrame)
+		if PartyFrame.PartyMemberFramePool then
+			pcall(function()
+				for child in PartyFrame.PartyMemberFramePool:EnumerateActive() do
+					SuppressSingleFrame(child)
+				end
+			end)
+		end
 		for i = 1, 4 do
 			local mf = PartyFrame["MemberFrame" .. i] or PartyFrame["PartyMemberFrame" .. i]
 			if mf then SuppressSingleFrame(mf) end
 		end
 	end
 
-	-- 2. CompactPartyFrame & Member Frames
+	-- 2. CompactPartyFrame & CompactPartyFrameMember1..5
 	if CompactPartyFrame then
 		SuppressSingleFrame(CompactPartyFrame)
 		for i = 1, 5 do
@@ -1327,19 +1539,37 @@ function ns.ApplyBlizzardPartyFrameSuppression()
 		end
 	end
 
-	-- 3. CompactRaidFrameContainer & Members (Raid-Style Party Frames)
+	-- 3. CompactRaidFrameContainer, CompactRaidFrameManager & Raid Groups
 	if CompactRaidFrameContainer then
 		SuppressSingleFrame(CompactRaidFrameContainer)
 	end
 	if CompactRaidFrameManager then
 		SuppressSingleFrame(CompactRaidFrameManager)
+		if CompactRaidFrameManager_SetSetting then
+			pcall(function()
+				CompactRaidFrameManager_SetSetting("IsShown", "0")
+			end)
+		end
 	end
+
+	for g = 1, 8 do
+		local grp = _G["CompactRaidGroup" .. g]
+		if grp then SuppressSingleFrame(grp) end
+		for m = 1, 5 do
+			local member = _G["CompactRaidGroup" .. g .. "Member" .. m]
+			if member then SuppressSingleFrame(member) end
+		end
+	end
+
 	for i = 1, 5 do
 		local crf = _G["CompactRaidFrame" .. i]
 		if crf then SuppressSingleFrame(crf) end
 	end
 
-	-- 4. Legacy PartyMemberFrame1..4
+	-- 4. Legacy PartyMemberFrame1..4 & Background
+	if PartyMemberBackground then
+		SuppressSingleFrame(PartyMemberBackground)
+	end
 	for i = 1, 4 do
 		local pmf = _G["PartyMemberFrame" .. i]
 		if pmf then SuppressSingleFrame(pmf) end
@@ -1347,7 +1577,7 @@ function ns.ApplyBlizzardPartyFrameSuppression()
 
 	if ns.debugBlizzard then
 		local elvDetected = (_G["ElvUI"] or _G["ElvUF"]) and true or false
-		print(string.format("|cff33ff99[MistPanel Blizzard]|r Exhaustive multi-frame suppression applied. ElvUI detected=%s", tostring(elvDetected)))
+		print(string.format("|cff33ff99[MistPanel Blizzard]|r Advanced ElvUI-proven suppression applied. ElvUI detected=%s", tostring(elvDetected)))
 	end
 end
 
@@ -1376,7 +1606,7 @@ function ns.SetHideBlizzardPartyFrames(enabled)
 end
 
 function ns.PrintBlizzardDebug()
-	print("|cff33ff99[MistPanel Blizzard]|r Status & Exhaustive Frame Audit:")
+	print("|cff33ff99[MistPanel Blizzard]|r Deep Runtime Frame Audit:")
 	print("  hideBlizzardPartyFrames setting: " .. tostring(ns.db.hideBlizzardPartyFrames))
 	print("  InCombatLockdown: " .. tostring(InCombatLockdown()))
 	local elvDetected = (_G["ElvUI"] or _G["ElvUF"]) and true or false
@@ -1388,11 +1618,29 @@ function ns.PrintBlizzardDebug()
 			local shown = obj:IsShown() and "SHOWN" or "hidden"
 			local visible = obj:IsVisible() and "|cffff0000[VISIBLE]|r" or "[not visible]"
 			local alpha = obj:GetAlpha()
+			local scale = obj:GetEffectiveScale()
 			local prot = obj:IsProtected() and "protected" or "unprotected"
 			local parent = obj:GetParent() and obj:GetParent():GetName() or "nil"
-			print(string.format("  - %s: %s %s (alpha=%.1f, %s, parent=%s)",
-				spec.label, shown, visible, alpha, prot, parent))
+			local objType = obj:GetObjectType and obj:GetObjectType() or "Frame"
+			print(string.format("  - %s (%s): %s %s (alpha=%.2f, scale=%.2f, %s, parent=%s)",
+				spec.label, objType, shown, visible, alpha, scale, prot, parent))
 		end
+	end
+
+	if PartyFrame and PartyFrame.PartyMemberFramePool then
+		local count = 0
+		pcall(function()
+			for child in PartyFrame.PartyMemberFramePool:EnumerateActive() do
+				count = count + 1
+				local cName = child:GetName() or "AnonymousPoolFrame"
+				local cShown = child:IsShown() and "SHOWN" or "hidden"
+				local cVis = child:IsVisible() and "|cffff0000[VISIBLE]|r" or "[not visible]"
+				local cParent = child:GetParent() and child:GetParent():GetName() or "nil"
+				print(string.format("  - PartyFramePool Active Member %d (%s): %s %s (parent=%s)",
+					count, cName, cShown, cVis, cParent))
+			end
+		end)
+		print("  PartyFrame.PartyMemberFramePool active count: " .. tostring(count))
 	end
 end
 
