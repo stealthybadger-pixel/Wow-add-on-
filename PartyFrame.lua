@@ -819,16 +819,38 @@ function ns.ResetPosition()
 	print("|cff33ff99MistPanel|r: position reset to default left-side location.")
 end
 
+local function SnapToPhysicalPixel(logicalValue, effScale)
+	effScale = effScale or (container and container:GetEffectiveScale()) or UIParent:GetEffectiveScale()
+	if not effScale or effScale <= 0 then return logicalValue end
+	local physicalPixels = math.floor((logicalValue * effScale) + 0.5)
+	return physicalPixels / effScale
+end
+
 local function LayoutSlots()
+	if not container or not slots[1] then return end
+	local effScale = container:GetEffectiveScale()
+	if not effScale or effScale <= 0 then effScale = UIParent:GetEffectiveScale() end
+
+	-- Calculate the pixel-snapped logical height of a single slot so every slot shares the exact same physical pixel height
+	local snappedHeight = SnapToPhysicalPixel(FRAME_HEIGHT, effScale)
+
 	for i = 1, MAX_SLOTS do
 		local slot = slots[i]
-		slot.frame:ClearAllPoints()
-		if i == 1 then
-			slot.frame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-		else
-			slot.frame:SetPoint("TOPLEFT", slots[i - 1].frame, "BOTTOMLEFT", 0, -FRAME_GAP)
+		if slot and slot.frame then
+			slot.frame:SetSize(FRAME_WIDTH, snappedHeight)
+			slot.frame:ClearAllPoints()
+
+			-- Calculate exact integer physical pixel Y position for the slot top edge
+			local targetPhysicalY = math.floor((i - 1) * (FRAME_HEIGHT + FRAME_GAP) * effScale + 0.5)
+			local logicalY = -targetPhysicalY / effScale
+
+			slot.frame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, logicalY)
 		end
 	end
+
+	-- Adjust container size to encompass all slots with exact physical pixel height
+	local totalPhysicalHeight = math.floor(((MAX_SLOTS * FRAME_HEIGHT) + ((MAX_SLOTS - 1) * FRAME_GAP)) * effScale + 0.5)
+	container:SetSize(FRAME_WIDTH, totalPhysicalHeight / effScale)
 end
 local function GetUnitRole(unit)
 	if not unit or not UnitExists(unit) then return "NONE" end
@@ -1582,6 +1604,7 @@ function ns.SetScale(scaleKey)
 	end
 	ns.db.scale = scaleKey
 	container:SetScale(value)
+	LayoutSlots()
 end
 
 ns.pendingBlizzardSuppression = false
@@ -1818,6 +1841,8 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("UNIT_AURA")
 	watcher:RegisterEvent("UNIT_FLAGS")
 	watcher:RegisterEvent("PLAYER_TALENT_UPDATE")
+	watcher:RegisterEvent("UI_SCALE_CHANGED")
+	watcher:RegisterEvent("DISPLAY_SIZE_CHANGED")
 
 	-- Targeted Hostile Cast Prediction events
 	watcher:RegisterEvent("UNIT_SPELLCAST_START")
@@ -1835,6 +1860,8 @@ function ns.InitializePartyFrame()
 			UpdateHostileCastForUnit(unit)
 		elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "NAME_PLATE_UNIT_REMOVED" then
 			ClearHostileCastForUnit(unit)
+		elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
+			LayoutSlots()
 		elseif event == "PLAYER_REGEN_ENABLED" then
 			if ns.pendingResetPos then
 				ns.ResetPosition()
