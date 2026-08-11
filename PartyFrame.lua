@@ -211,15 +211,15 @@ local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
 -- Extended to demonstrate My HoT visual layout (with EQ bars), Role Gutter Absorb Bar, and Targeted Danger prediction:
--- Slot 1: Tank with 100% full shield (40k/40k in role gutter) + Rage power bar + 2 active HoTs + Danger
+-- Slot 1: Tank with 100% full shield (728/728 in role gutter) + Rage power bar + 2 active HoTs + Danger
 -- Slot 2: Healer with 0% shield + Mana power bar + 1 active HoT
--- Slot 3: DPS 1 with 50% depleted shield (15k/30k in role gutter) + Energy power bar + 3 active HoTs + Pink Dispel + Danger
+-- Slot 3: DPS 1 with 50% depleted shield (544/1088 in role gutter) + Energy power bar + 3 active HoTs + Pink Dispel + Danger
 -- Slot 4: DPS 2 with 0% shield + Mana power bar
 -- Slot 5: DPS 3 with 0% shield + Mana power bar + 1 nearly-expired HoT
 local TEST_ROSTER = {
 	{
 		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
-		powerType = 1, power = 60, maxPower = 100, absorb = 40, maxAbsorb = 40, maxHealth = 100,
+		powerType = 1, power = 60, maxPower = 100, absorb = 728, maxAbsorb = 728, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4.2 },
@@ -236,7 +236,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
-		powerType = 3, power = 90, maxPower = 100, absorb = 15, maxAbsorb = 30, maxHealth = 100,
+		powerType = 3, power = 90, maxPower = 100, absorb = 544, maxAbsorb = 1088, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 2.4 },
@@ -1013,8 +1013,8 @@ local function UpdateAbsorbState(slot, entryAbsorb)
 
 	-- In developer test mode (/mistpanel test):
 	-- Demonstrates percentage remaining of current shield amount:
-	-- Slot 1: Full shield (40k / 40k = 100% full bar in role gutter)
-	-- Slot 3: Partially depleted shield (15k / 30k = 50% bar in role gutter)
+	-- Slot 1: Full Fire Barrier/Life Cocoon (728 / 728 = 100% full bar in role gutter)
+	-- Slot 3: Partially depleted shield (544 / 1088 = 50% bar in role gutter)
 	-- Slot 2/4/5: No shield (0%)
 	if ns.testModeActive and entryAbsorb then
 		if entryAbsorb.absorb and entryAbsorb.maxAbsorb and entryAbsorb.maxAbsorb > 0 then
@@ -1030,24 +1030,48 @@ local function UpdateAbsorbState(slot, entryAbsorb)
 
 	local unit = slot.unit
 	if not unit or not UnitExists(unit) then
+		slot.absorbBaseline = nil
 		slot.absorbBar:SetMinMaxValues(0, 1)
 		slot.absorbBar:SetValue(0)
 		return
 	end
 
-	-- Pass absorbs and maxHealth directly into C++ StatusBar widget methods.
-	-- Modern Retail WoW unit absorb calls return secret numbers in tainted contexts,
-	-- so we must not perform Lua arithmetic (/), comparisons (>), or percentage math on secret values.
-	local maxHealth = UnitHealthMax(unit)
 	local absorbs = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)
-
-	if maxHealth and absorbs then
-		slot.absorbBar:SetMinMaxValues(0, maxHealth)
-		slot.absorbBar:SetValue(absorbs)
-	else
+	if not absorbs then
+		slot.absorbBaseline = nil
 		slot.absorbBar:SetMinMaxValues(0, 1)
 		slot.absorbBar:SetValue(0)
+		return
 	end
+
+	-- Dynamic Shield Baseline Tracking:
+	-- When a shield first appears, currentAbsorb becomes the baseline (making minMax = 0..baseline, value = currentAbsorb -> 100% FULL BAR).
+	-- Any shield (Fire Barrier 728, Life Cocoon 1088, Touch of Karma) starts as a 100% full bar in the role gutter.
+	-- As damage is absorbed, currentAbsorb drops below baseline and the bar drains right-to-left.
+	-- If currentAbsorb rises above baseline (new or refreshed shield), baseline updates to the higher amount.
+	-- If absorbs reaches 0, baseline is cleared.
+	local trackingOk = pcall(function()
+		if absorbs == 0 then
+			slot.absorbBaseline = nil
+			slot.absorbBar:SetMinMaxValues(0, 1)
+			slot.absorbBar:SetValue(0)
+		else
+			if not slot.absorbBaseline or absorbs > slot.absorbBaseline then
+				slot.absorbBaseline = absorbs
+			end
+			slot.absorbBar:SetMinMaxValues(0, slot.absorbBaseline)
+			slot.absorbBar:SetValue(absorbs)
+		end
+	end)
+
+	if not trackingOk then
+		-- Modern Retail WoW secret-value safety fallback:
+		-- If absorbs is a secret number and cannot be compared in Lua, pass absorbs into both max and value
+		-- so C++ native widget logic renders a 100% full bar safely without Lua arithmetic/comparison.
+		slot.absorbBar:SetMinMaxValues(0, absorbs)
+		slot.absorbBar:SetValue(absorbs)
+	end
+
 	slot.absorbBar:Show()
 end
 
