@@ -498,12 +498,8 @@ local function SetSlotGlow(slot, r, g, b, baseAlpha)
 end
 
 local function CreateSlot(index)
-	local f = CreateFrame("Button", ADDON_NAME .. "Slot" .. index, container, "SecureUnitButtonTemplate,BackdropTemplate")
+	local f = CreateFrame("Button", ADDON_NAME .. "Slot" .. index, container, "SecureUnitButtonTemplate")
 	f:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
-	f:SetBackdrop({
-		bgFile = "Interface\\Buttons\\WHITE8x8",
-	})
-	f:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
 
 	-- Secure click registration for Clique and default WoW targeting
 	f:RegisterForClicks("AnyUp", "AnyDown")
@@ -641,9 +637,9 @@ local function CreateSlot(index)
 		hotIcons[i] = iconFrame
 	end
 
-	local bgTexture = f:CreateTexture(nil, "BACKGROUND")
+	local bgTexture = f:CreateTexture(nil, "BACKGROUND", nil, -8)
 	bgTexture:SetAllPoints(f)
-	bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.85)
+	bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.95)
 
 	-- Thin 3px primary resource bar anchored at bottom right of role column (inset 1px further right)
 	local powerBar = CreateFrame("StatusBar", nil, f)
