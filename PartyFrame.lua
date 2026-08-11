@@ -11,7 +11,7 @@ local HEALTH_BAR_HEIGHT = 5
 local MAX_SLOTS = 5
 local MAX_HOTS = 5
 local HOT_ICON_SIZE = 11
-local HOT_BAR_HEIGHT = 34
+local HOT_BAR_HEIGHT = 26
 
 local SCALE_VALUES = {
 	SMALL = 0.8,
