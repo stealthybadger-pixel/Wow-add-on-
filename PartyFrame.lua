@@ -209,6 +209,24 @@ local COLOR_BORDER_DEFAULT = { 0.15, 0.15, 0.15, 0.9 }
 local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
+local HiddenFrame = CreateFrame("Frame", ADDON_NAME .. "HiddenBlizzardPartyFrameParent")
+HiddenFrame:Hide()
+
+local DEFENSIVE_AURA_IDS = {
+	[22812] = true,  -- Barkskin
+	[871] = true,    -- Shield Wall
+	[642] = true,    -- Divine Shield
+	[45438] = true,  -- Ice Block
+	[120954] = true, -- Fortifying Brew
+	[108271] = true, -- Astral Shift
+	[116849] = true, -- Life Cocoon
+	[33206] = true,  -- Pain Suppression
+	[47585] = true,  -- Dispersion
+	[186265] = true, -- Aspect of the Turtle
+	[5277] = true,   -- Evasion
+	[31224] = true,  -- Cloak of Shadows
+}
+
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
 -- Extended to demonstrate My HoT visual layout (with EQ bars) and Targeted Danger prediction:
 -- Slot 1: Tank with 2 active HoTs + Incoming Danger Cast (Shadow Bolt at 70% fill)
@@ -965,33 +983,34 @@ local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 end
 
 local function UpdateClassBackground(slot, entryClass, isDead, inRange)
-	local color = nil
-	if ns.testModeActive and entryClass then
-		color = RAID_CLASS_COLORS[entryClass]
-	elseif slot.unit and UnitExists(slot.unit) then
-		local _, classFileName = UnitClass(slot.unit)
-		if classFileName then
-			color = RAID_CLASS_COLORS[classFileName]
+	pcall(function()
+		local color = nil
+		if ns.testModeActive and entryClass then
+			color = RAID_CLASS_COLORS[entryClass]
+		elseif slot.unit and UnitExists(slot.unit) then
+			local _, classFileName = UnitClass(slot.unit)
+			if classFileName then
+				color = RAID_CLASS_COLORS[classFileName]
+			end
 		end
-	end
 
-	if not color then
-		color = { r = 0.2, g = 0.2, b = 0.2 }
-	end
+		if not color then
+			color = { r = 0.2, g = 0.2, b = 0.2 }
+		end
 
-	-- Dark desaturated class tint (maintains UI widget readability)
-	local r = color.r * 0.18 + 0.04
-	local g = color.g * 0.18 + 0.04
-	local b = color.b * 0.18 + 0.04
-	local alpha = 0.92
+		local r = color.r * 0.18 + 0.04
+		local g = color.g * 0.18 + 0.04
+		local b = color.b * 0.18 + 0.04
+		local alpha = 0.92
 
-	if isDead or not inRange then
-		r = r * 0.4
-		g = g * 0.4
-		b = b * 0.4
-	end
+		if isDead or not inRange then
+			r = r * 0.4
+			g = g * 0.4
+			b = b * 0.4
+		end
 
-	slot.frame:SetBackdropColor(r, g, b, alpha)
+		slot.frame:SetBackdropColor(r, g, b, alpha)
+	end)
 end
 
 local function UpdatePowerState(slot, entryPower)
@@ -1016,19 +1035,22 @@ local function UpdatePowerState(slot, entryPower)
 		return
 	end
 
-	local pType, pToken = UnitPowerType(unit)
-	local curPower = UnitPower(unit, pType)
-	local maxPower = UnitPowerMax(unit, pType)
-
-	if maxPower and maxPower > 0 then
-		slot.powerBar:SetMinMaxValues(0, maxPower)
-		slot.powerBar:SetValue(curPower or 0)
-		local color = PowerBarColor[pToken] or PowerBarColor[pType] or { r = 0.0, g = 0.5, b = 1.0 }
-		slot.powerBar:SetStatusBarColor(color.r, color.g, color.b, 0.9)
-		slot.powerBar:Show()
-	else
+	pcall(function()
+		local pType, pToken = UnitPowerType(unit)
+		if pType then
+			local curPower = UnitPower(unit, pType)
+			local maxPower = UnitPowerMax(unit, pType)
+			if maxPower then
+				slot.powerBar:SetMinMaxValues(0, maxPower)
+				slot.powerBar:SetValue(curPower or 0)
+				local color = PowerBarColor[pToken] or PowerBarColor[pType] or { r = 0.0, g = 0.5, b = 1.0 }
+				slot.powerBar:SetStatusBarColor(color.r, color.g, color.b, 0.9)
+				slot.powerBar:Show()
+				return
+			end
+		end
 		slot.powerBar:Hide()
-	end
+	end)
 end
 
 local function UpdateAbsorbState(slot, entryAbsorb)
@@ -1051,16 +1073,17 @@ local function UpdateAbsorbState(slot, entryAbsorb)
 		return
 	end
 
-	local absorbs = UnitGetTotalAbsorbs(unit) or 0
-	local maxHealth = UnitHealthMax(unit) or 1
-
-	if absorbs > 0 and maxHealth > 0 then
-		slot.absorbBar:SetMinMaxValues(0, maxHealth)
-		slot.absorbBar:SetValue(absorbs)
-		slot.absorbBar:Show()
-	else
-		slot.absorbBar:Hide()
-	end
+	pcall(function()
+		local absorbs = UnitGetTotalAbsorbs(unit)
+		local maxHealth = UnitHealthMax(unit)
+		if absorbs and maxHealth then
+			slot.absorbBar:SetMinMaxValues(0, maxHealth)
+			slot.absorbBar:SetValue(absorbs)
+			slot.absorbBar:Show()
+		else
+			slot.absorbBar:Hide()
+		end
+	end)
 end
 
 local function UpdateDefensiveState(slot, entryDefensive)
@@ -1083,24 +1106,26 @@ local function UpdateDefensiveState(slot, entryDefensive)
 	end
 
 	local foundIcon = nil
-	if AuraUtil and AuraUtil.FindAura then
-		AuraUtil.FindAura(function(name, icon, count, debuffType, duration, expirationTime, source, isStealable, nameplateShowPersonal, spellId)
-			if spellId and DEFENSIVE_AURA_IDS[spellId] then
-				foundIcon = icon
-				return true
-			end
-			return false
-		end, unit, "HELPFUL")
-	elseif C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
-		for index = 1, 40 do
-			local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
-			if not aura then break end
-			if aura.spellId and DEFENSIVE_AURA_IDS[aura.spellId] then
-				foundIcon = aura.icon
-				break
+	pcall(function()
+		if AuraUtil and AuraUtil.FindAura then
+			AuraUtil.FindAura(function(name, icon, count, debuffType, duration, expirationTime, source, isStealable, nameplateShowPersonal, spellId)
+				if spellId and DEFENSIVE_AURA_IDS[spellId] then
+					foundIcon = icon
+					return true
+				end
+				return false
+			end, unit, "HELPFUL")
+		elseif C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+			for index = 1, 40 do
+				local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
+				if not aura then break end
+				if aura.spellId and DEFENSIVE_AURA_IDS[aura.spellId] then
+					foundIcon = aura.icon
+					break
+				end
 			end
 		end
-	end
+	end)
 
 	if foundIcon then
 		slot.defensiveIcon:SetTexture(foundIcon)
@@ -1128,8 +1153,6 @@ local function UpdateSlot(slot, unit)
 	RenderRoleIcon(slot, GetUnitRole(unit))
 
 	-- Pass health and maxHealth directly to the C++ StatusBar widget methods.
-	-- Modern Retail WoW unit health calls return secret values in tainted contexts,
-	-- so we must not perform Lua arithmetic (/), comparisons (>), or percentage math on them.
 	local maxHealth = UnitHealthMax(unit)
 	local health = UnitHealth(unit)
 	if maxHealth and health then
@@ -1147,7 +1170,14 @@ local function UpdateSlot(slot, unit)
 	RenderHotIcons(slot, GetUnitPlayerHoTs(unit))
 
 	local isDead = UnitIsDead(unit)
-	local inRange = isDead or UnitIsInRange(unit)
+	local inRange = true
+	if not isDead and UnitInRange then
+		local ok, r = pcall(UnitInRange, unit)
+		if ok and r == false then
+			inRange = false
+		end
+	end
+
 	local hasDispel = not isDead and UnitHasDispellableAura(unit)
 	local hasAggro = not isDead and UnitHasAggro(unit)
 
@@ -1353,28 +1383,31 @@ function ns.RefreshRoster()
 
 	ns.pendingRosterRefresh = false
 	ns.UpdateActiveHoTSpells()
+	local rawUnits = GetGroupUnits()
 	local units = SortedRoster()
 	for i = 1, MAX_SLOTS do
 		UpdateSlot(slots[i], units[i])
 	end
 	container:SetShown(#units > 0)
 
-	if ns.debugSecure then
-		print(string.format("|cff33ff99[MistPanel Secure]|r inGroup=%s inRaid=%s count=%d",
-			tostring(IsInGroup()), tostring(IsInRaid()), #units))
-		if not IsInGroup() then
-			print("  (Solo mode: panel hidden)")
-		else
-			for i = 1, MAX_SLOTS do
-				local u = slots[i].unit
-				local attrUnit = slots[i].frame:GetAttribute("unit")
-				if u and UnitExists(u) then
-					local name = UnitName(u) or "unknown"
-					local role = GetUnitRole(u)
-					print(string.format("  slot%d -> unit=%s -> attrUnit=%s -> %s -> %s", i, u, tostring(attrUnit), role, name))
-				else
-					print(string.format("  slot%d -> (hidden)", i))
-				end
+	if ns.debugSecure or ns.debugRoster then
+		print(string.format("|cff33ff99[MistPanel Roster]|r inGroup=%s inRaid=%s rawCount=%d sortedCount=%d testMode=%s",
+			tostring(IsInGroup()), tostring(IsInRaid()), #rawUnits, #units, tostring(ns.testModeActive)))
+		print("  Raw units: " .. (#rawUnits > 0 and table.concat(rawUnits, ", ") or "none"))
+		print("  Sorted units: " .. (#units > 0 and table.concat(units, ", ") or "none"))
+		for i = 1, MAX_SLOTS do
+			local s = slots[i]
+			local u = s.unit
+			local attrUnit = s.frame:GetAttribute("unit")
+			local shown = s.frame:IsShown() and "SHOWN" or "hidden"
+			local parentName = s.frame:GetParent() and s.frame:GetParent():GetName() or "nil"
+			if u and UnitExists(u) then
+				local name = UnitName(u) or "unknown"
+				local role = GetUnitRole(u)
+				print(string.format("  - Slot%d: frame=%s unit=%s (attr=%s) role=%s name=%s (parent=%s)",
+					i, shown, u, tostring(attrUnit), role, name, parentName))
+			else
+				print(string.format("  - Slot%d: frame=%s (no unit assigned, parent=%s)", i, shown, parentName))
 			end
 		end
 	end
@@ -1621,7 +1654,7 @@ function ns.PrintBlizzardDebug()
 			local scale = obj:GetEffectiveScale()
 			local prot = obj:IsProtected() and "protected" or "unprotected"
 			local parent = obj:GetParent() and obj:GetParent():GetName() or "nil"
-			local objType = obj:GetObjectType and obj:GetObjectType() or "Frame"
+			local objType = obj.GetObjectType and obj:GetObjectType() or "Frame"
 			print(string.format("  - %s (%s): %s %s (alpha=%.2f, scale=%.2f, %s, parent=%s)",
 				spec.label, objType, shown, visible, alpha, scale, prot, parent))
 		end
