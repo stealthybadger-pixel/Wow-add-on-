@@ -1212,6 +1212,7 @@ local function UpdateSlot(slot, unit)
 			end
 		end)
 		if not colorSet then
+			ns.liveHealthColorRestricted = true
 			slot.healthBar:SetStatusBarColor(0.1, 0.9, 0.1, 1.0)
 		end
 	else
@@ -1831,4 +1832,16 @@ function ns.RunPredictTest()
 		(setAlphaOk and "|cff00ff00PASSED|r" or "|cffff0000FAILED|r (" .. tostring(setAlphaErr) .. ")")))
 
 	print("|cff33ff99[MistPanel PredictTest]|r Investigation complete.")
+end
+
+function ns.PrintStatus()
+	print("|cff33ff99[MistPanel Status]|r")
+	print(string.format("  Addon Loaded: %s", tostring(ns.db ~= nil)))
+	print(string.format("  Test Mode Active: %s", tostring(ns.testModeActive)))
+	print(string.format("  Blizzard Party Frame Suppression: %s", (ns.db and ns.db.hideBlizzardPartyFrames) and "Active" or "Disabled"))
+	if ns.liveHealthColorRestricted then
+		print("  Live Health Bar Colour: |cffffaa00Static Green|r (Retail secret-value restriction blocks Lua health percentage division)")
+	else
+		print("  Live Health Bar Colour: |cff00ff00Dynamic Green->Yellow->Red interpolation active|r")
+	end
 end
