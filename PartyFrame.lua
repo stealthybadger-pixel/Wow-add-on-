@@ -651,7 +651,8 @@ local function CreateSlot(index)
 	end
 
 	local bgTexture = f:CreateTexture(nil, "BACKGROUND", nil, -8)
-	bgTexture:SetAllPoints(f)
+	bgTexture:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
+	bgTexture:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
 	bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.95)
 
 	-- Thin 3px primary resource bar anchored at bottom right of role column (X=48 to 209, Y=1 to 4)
