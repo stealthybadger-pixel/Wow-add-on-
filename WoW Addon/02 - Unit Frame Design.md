@@ -38,8 +38,8 @@ Behaviour:
 • Full health = full-width line.  
 • Damage causes the line to retreat from right to left.  
 • Length is the primary health measure.  
-• Colour also communicates health state, moving from green at high health toward red at low/critical health.  
-• The line is one health-state colour at a time; it is not a decorative left-to-right gradient.  
+• Colour communicates health level, shifting dynamically from Green (high/100%) → Yellow (mid/50%) → Red (low/0%).  
+• The line is one solid health-level colour at a time; it is not a decorative left-to-right rainbow gradient.  
 • No health number or percentage is displayed.
 
 A very thin (3px) primary resource bar sits directly below the health bar in the main content area (starting after `ROLE_COLUMN_WIDTH`). It displays the unit's primary resource (Mana, Rage, Energy, Focus, Runic Power) coloured by power type using standard WoW power colours. It occupies the main content area only, keeping the left role icon gutter completely clear. No numeric values or text are displayed.

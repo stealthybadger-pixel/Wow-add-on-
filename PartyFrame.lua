@@ -944,14 +944,38 @@ local function RenderHotIcons(slot, hots)
 	end
 end
 
+local function GetHealthColor(pct)
+	if not pct then return 0.1, 0.9, 0.1 end
+
+	pct = math.max(0, math.min(1, pct))
+
+	-- Smooth color transition:
+	-- Full/high health (1.0) -> Green
+	-- Mid health (0.5) -> Yellow
+	-- Low/critical health (0.0) -> Red
+	local r, g, b
+	if pct >= 0.5 then
+		local factor = (1.0 - pct) / 0.5
+		r = 0.1 + factor * (1.0 - 0.1)
+		g = 0.9 - factor * (0.9 - 0.8)
+		b = 0.1 - factor * (0.1 - 0.0)
+	else
+		local factor = (0.5 - pct) / 0.5
+		r = 1.0 - factor * (1.0 - 0.9)
+		g = 0.8 - factor * (0.8 - 0.1)
+		b = 0.0 + factor * (0.1 - 0.0)
+	end
+	return r, g, b
+end
+
 local function RenderHealthFraction(slot, frac)
 	frac = math.max(0, math.min(1, frac or 0))
 	slot.healthBar:SetMinMaxValues(0, 1)
 	slot.healthBar:SetValue(frac)
 	local r, g, b = GetHealthColor(frac)
-	slot.healthBar:SetStatusBarColor(r, g, b)
+	slot.healthBar:SetStatusBarColor(r, g, b, 1.0)
 	if slot.healthBarBg then
-		slot.healthBarBg:SetColorTexture(r * 0.25, g * 0.25, b * 0.25, 0.9)
+		slot.healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
 	end
 end
 
@@ -1176,11 +1200,25 @@ local function UpdateSlot(slot, unit)
 	if maxHealth and health then
 		slot.healthBar:SetMinMaxValues(0, maxHealth)
 		slot.healthBar:SetValue(health)
+
+		-- Secret-safe health percentage calculation & color shift
+		local colorSet = false
+		pcall(function()
+			if maxHealth > 0 then
+				local pct = health / maxHealth
+				local r, g, b = GetHealthColor(pct)
+				slot.healthBar:SetStatusBarColor(r, g, b, 1.0)
+				colorSet = true
+			end
+		end)
+		if not colorSet then
+			slot.healthBar:SetStatusBarColor(0.1, 0.9, 0.1, 1.0)
+		end
 	else
 		slot.healthBar:SetMinMaxValues(0, 1)
 		slot.healthBar:SetValue(1)
+		slot.healthBar:SetStatusBarColor(0.1, 0.9, 0.1, 1.0)
 	end
-	slot.healthBar:SetStatusBarColor(0.1, 0.9, 0.1)
 	if slot.healthBarBg then
 		slot.healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
 	end
