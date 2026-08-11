@@ -45,7 +45,7 @@ Behaviour:
 A very thin (3px) primary resource bar sits directly below the health bar in the main content area (starting after `ROLE_COLUMN_WIDTH`). It displays the unit's primary resource (Mana, Rage, Energy, Focus, Runic Power) coloured by power type using standard WoW power colours. It occupies the main content area only, keeping the left role icon gutter completely clear. No numeric values or text are displayed.
 
 5b\. Shield Absorb Bar  
-Active shield absorbs display as a horizontal cyan/blue bar strictly within the left role-icon gutter.
+Active shield absorbs display as a horizontal near-white (cool tint `#EAF7FF`) bar strictly within the left role-icon gutter.
 
 Behaviour:  
 • The absorb bar is the exact same height as the health bar (7px).  

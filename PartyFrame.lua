@@ -627,7 +627,7 @@ local function CreateSlot(index)
 	healthBarBg:SetAllPoints(healthBar)
 	healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
 
-	-- 7px horizontal cyan absorb/shield bar positioned strictly within the left role-icon gutter (X=1 to 45).
+	-- 7px horizontal near-white absorb/shield bar positioned strictly within the left role-icon gutter (X=1 to 45).
 	-- Aligned vertically with the 7px health bar in the main content area (Y=5 to 12 from bottom).
 	-- Reverse-filled right-to-left so shields retreat rightward toward the vertical divider.
 	-- Rendered behind the role icon so role icons remain clear and readable.
@@ -636,7 +636,7 @@ local function CreateSlot(index)
 	absorbBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH - 1, 5)
 	absorbBar:SetHeight(7)
 	absorbBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-	absorbBar:SetStatusBarColor(0.2, 0.8, 1.0, 0.65)
+	absorbBar:SetStatusBarColor(0.92, 0.97, 1.0, 0.65)
 	absorbBar:SetReverseFill(true)
 	absorbBar:SetMinMaxValues(0, 1)
 	absorbBar:SetValue(0)
