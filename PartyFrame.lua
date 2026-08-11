@@ -596,7 +596,7 @@ local function CreateSlot(index)
 
 		local durationBarBg = durationBar:CreateTexture(nil, "BACKGROUND")
 		durationBarBg:SetAllPoints(durationBar)
-		durationBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
+		durationBarBg:SetColorTexture(0, 0, 0, 0)
 
 		-- 11x11 HoT icon frame placed immediately BELOW the duration bar with 1px gap
 		local iconFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
@@ -1032,7 +1032,7 @@ local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 		SetSlotGlow(slot, COLOR_BORDER_AGGRO[1], COLOR_BORDER_AGGRO[2], COLOR_BORDER_AGGRO[3], 1.0)
 	else
 		slot.borderFrame:SetBackdropBorderColor(unpack(COLOR_BORDER_DEFAULT))
-		SetSlotGlow(slot, 0.0, 0.0, 0.0, 0.5)
+		SetSlotGlow(slot, 0.0, 0.0, 0.0, 0.0)
 	end
 
 	-- Frame dimming & desaturation for out-of-range or dead state
