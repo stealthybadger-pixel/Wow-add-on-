@@ -90,32 +90,31 @@ Build:
 
 Acceptance: configuration can be completed without joining a real party.
 
-PHASE 6 — COMPACT FRAME VISUAL ADDITIONS & REFINEMENTS  
-Implemented Live:  
-• Exhaustive multi-frame Blizzard party suppression (PartyFrame, CompactPartyFrame, CompactRaidFrameContainer, Pool Members).  
-• Class-colored dark desaturated backgrounds (`RAID_CLASS_COLORS` tinted).  
-• Re-anchored health bars starting cleanly after the left role column.  
-• Alt + Left-Click Drag positioning with persistent location saving.  
-• Spec-Aware Mistweaver HoTs with vertical EQ duration bars.  
+PHASE 6 — IN-GAME POLISH  
+Test in real dungeon play.
 
-Developer Test Mode Only (`/mistpanel test`):  
-• Primary resource bar (Mana, Energy, Rage, Focus, Runic Power, etc.).  
-• Cyan absorb/shield overlay (Life Cocoon, PW:Shield, etc.).  
-• Active self-defensive mitigation icons (Barkskin, Shield Wall, Divine Shield, Ice Block, Fortifying Brew, Astral Shift, etc.).  
-• Targeted hostile cast prediction indicator.  
+Tune only evidence-based usability issues such as:  
+• Frame dimensions.  
+• Gap size.  
+• Health-line thickness.  
+• HoT icon/bar width and spacing.  
+• Effect colours.  
+• Aggro/dispel outline strength.  
+• Range/death dimming strength.
 
-OUT OF V1 (Restricted by Retail WoW Engine Secret-Value Rules):  
-• Live primary resource bars (UnitPower secret values).  
-• Live shield absorb overlays (UnitGetTotalAbsorbs secret values).  
-• Live self-defensive aura scanning (Tainted aura inspection).  
-• Live targeted hostile cast prediction (UnitIsUnit secret booleans).  
+Do not add features merely because conventional unit-frame addons have them.
+
+OUT OF V1  
 • Raid frames.  
 • Pets.  
 • Other healer classes.  
 • General-purpose unit frames.  
 • Player/target/focus/boss replacement frames.  
-• Names and numeric health text.  
-• Generic debuff panels.  
+• Names and numeric health.  
+• Mana/resources.  
+• Shields/absorbs.  
+• Generic buff/debuff panels.  
+• HoT expiry prompts.  
 • Mouse-wheel bindings.  
 • AFK/disconnect indicators.  
 • Per-character profiles.  

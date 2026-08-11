@@ -209,24 +209,6 @@ local COLOR_BORDER_DEFAULT = { 0.15, 0.15, 0.15, 0.9 }
 local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
-local HiddenFrame = CreateFrame("Frame", ADDON_NAME .. "HiddenBlizzardPartyFrameParent")
-HiddenFrame:Hide()
-
-local DEFENSIVE_AURA_IDS = {
-	[22812] = true,  -- Barkskin
-	[871] = true,    -- Shield Wall
-	[642] = true,    -- Divine Shield
-	[45438] = true,  -- Ice Block
-	[120954] = true, -- Fortifying Brew
-	[108271] = true, -- Astral Shift
-	[116849] = true, -- Life Cocoon
-	[33206] = true,  -- Pain Suppression
-	[47585] = true,  -- Dispersion
-	[186265] = true, -- Aspect of the Turtle
-	[5277] = true,   -- Evasion
-	[31224] = true,  -- Cloak of Shadows
-}
-
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
 -- Extended to demonstrate My HoT visual layout (with EQ bars) and Targeted Danger prediction:
 -- Slot 1: Tank with 2 active HoTs + Incoming Danger Cast (Shadow Bolt at 70% fill)
@@ -548,7 +530,7 @@ local function CreateSlot(index)
 	-- Subtle vertical divider separating role column from main area
 	local divider = f:CreateTexture(nil, "ARTWORK")
 	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -1)
-	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, 1)
+	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 1)
 	divider:SetWidth(1)
 	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
@@ -559,8 +541,10 @@ local function CreateSlot(index)
 	for i = 1, MAX_HOTS do
 		local posX = startX + (i - 1) * (HOT_ICON_SIZE + iconGap)
 
+		-- Clean borderless vertical duration bar (EQ bar) placed DIRECTLY ABOVE the 11x11 HoT icon
+		-- 2px top clearance below top frame edge -> Y = -3px
 		local durationBar = CreateFrame("StatusBar", nil, f)
-		durationBar:SetSize(HOT_ICON_SIZE, 30) -- Shrunk by 2px to accommodate thin primary resource bar
+		durationBar:SetSize(HOT_ICON_SIZE, HOT_BAR_HEIGHT)
 		durationBar:SetPoint("TOPLEFT", f, "TOPLEFT", posX, -3)
 		durationBar:SetOrientation("VERTICAL")
 		durationBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
@@ -571,6 +555,8 @@ local function CreateSlot(index)
 		durationBarBg:SetAllPoints(durationBar)
 		durationBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
 
+		-- 11x11 HoT icon frame placed immediately BELOW the duration bar with 1px gap
+		-- 1px bottom clearance above health bar -> Y = -49px
 		local iconFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
 		iconFrame:SetSize(HOT_ICON_SIZE, HOT_ICON_SIZE)
 		iconFrame:SetPoint("TOPLEFT", durationBar, "BOTTOMLEFT", 0, -1)
@@ -609,25 +595,11 @@ local function CreateSlot(index)
 		hotIcons[i] = iconFrame
 	end
 
-	-- Thin 3px primary resource bar anchored at bottom right of role column
-	local powerBar = CreateFrame("StatusBar", nil, f)
-	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH + 1, 1)
-	powerBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
-	powerBar:SetHeight(3)
-	powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-	powerBar:SetMinMaxValues(0, 1)
-	powerBar:SetValue(1)
-	powerBar:EnableMouse(false)
-
-	local powerBarBg = powerBar:CreateTexture(nil, "BACKGROUND")
-	powerBarBg:SetAllPoints(powerBar)
-	powerBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
-
-	-- 10px health bar anchored directly above powerBar
+	-- Thin bottom health line
 	local healthBar = CreateFrame("StatusBar", nil, f)
-	healthBar:SetPoint("BOTTOMLEFT", powerBar, "TOPLEFT", 0, 1)
-	healthBar:SetPoint("BOTTOMRIGHT", powerBar, "TOPRIGHT", 0, 1)
-	healthBar:SetHeight(10)
+	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
+	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
+	healthBar:SetHeight(HEALTH_BAR_HEIGHT)
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	healthBar:SetMinMaxValues(0, 1)
 	healthBar:SetValue(1)
@@ -636,32 +608,6 @@ local function CreateSlot(index)
 	local healthBarBg = healthBar:CreateTexture(nil, "BACKGROUND")
 	healthBarBg:SetAllPoints(healthBar)
 	healthBarBg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
-
-	-- Cyan semi-transparent absorb/shield overlay bar rendered directly on healthBar
-	local absorbBar = CreateFrame("StatusBar", nil, healthBar)
-	absorbBar:SetAllPoints(healthBar)
-	absorbBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-	absorbBar:SetStatusBarColor(0.2, 0.8, 1.0, 0.65)
-	absorbBar:SetMinMaxValues(0, 1)
-	absorbBar:SetValue(0)
-	absorbBar:EnableMouse(false)
-	absorbBar:Hide()
-
-	-- Active self-defensive mitigation icon container (upper right main area)
-	local defensiveFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
-	defensiveFrame:SetSize(14, 14)
-	defensiveFrame:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -4)
-	defensiveFrame:EnableMouse(false)
-	defensiveFrame:SetBackdrop({
-		edgeFile = "Interface\\Buttons\\WHITE8x8",
-		edgeSize = 1,
-	})
-	defensiveFrame:SetBackdropBorderColor(1.0, 0.84, 0.0, 0.9)
-
-	local defensiveIcon = defensiveFrame:CreateTexture(nil, "ARTWORK")
-	defensiveIcon:SetAllPoints(defensiveFrame)
-	defensiveIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	defensiveFrame:Hide()
 
 	-- Incoming Danger Indicator Container (icon + horizontal cast bar) placed in central main area
 	local dangerContainer = CreateFrame("Frame", nil, f)
@@ -679,7 +625,7 @@ local function CreateSlot(index)
 	dangerBar:SetPoint("LEFT", dangerIcon, "RIGHT", 3, 0)
 	dangerBar:SetOrientation("HORIZONTAL")
 	dangerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-	dangerBar:SetStatusBarColor(1.0, 0.4, 0.0, 1.0)
+	dangerBar:SetStatusBarColor(1.0, 0.4, 0.0, 1.0) -- Restrained Warning Orange/Red
 	dangerBar:EnableMouse(false)
 	dangerBar:SetBackdrop({
 		edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -704,11 +650,6 @@ local function CreateSlot(index)
 		hotIcons = hotIcons,
 		healthBar = healthBar,
 		healthBarBg = healthBarBg,
-		powerBar = powerBar,
-		powerBarBg = powerBarBg,
-		absorbBar = absorbBar,
-		defensiveFrame = defensiveFrame,
-		defensiveIcon = defensiveIcon,
 		dangerContainer = dangerContainer,
 		dangerIcon = dangerIcon,
 		dangerBar = dangerBar,
@@ -977,101 +918,9 @@ local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 		slot.healthBar:SetAlpha(0.45)
 	else
 		slot.frame:SetAlpha(1.0)
-				slot.roleIcon:SetDesaturated(false)
+		slot.roleIcon:SetDesaturated(false)
 		slot.healthBar:SetAlpha(1.0)
 	end
-end
-
-local function UpdateClassBackground(slot, entryClass, isDead, inRange)
-	local color = nil
-	if ns.testModeActive and entryClass then
-		color = RAID_CLASS_COLORS[entryClass]
-	elseif slot.unit and UnitExists(slot.unit) then
-		local _, classFileName = UnitClass(slot.unit)
-		if classFileName then
-			color = RAID_CLASS_COLORS[classFileName]
-		end
-	end
-
-	if not color then
-		color = { r = 0.2, g = 0.2, b = 0.2 }
-	end
-
-	local r = color.r * 0.18 + 0.04
-	local g = color.g * 0.18 + 0.04
-	local b = color.b * 0.18 + 0.04
-	local alpha = 0.92
-
-	if isDead or not inRange then
-		r = r * 0.4
-		g = g * 0.4
-		b = b * 0.4
-	end
-
-	slot.frame:SetBackdropColor(r, g, b, alpha)
-end
-
-local function UpdatePowerState(slot, entryPower)
-	if not slot or not slot.powerBar then return end
-
-	-- In developer test mode, demonstrate simulated primary resource bars
-	if ns.testModeActive and entryPower then
-		slot.powerBar:SetMinMaxValues(0, entryPower.maxPower or 100)
-		slot.powerBar:SetValue(entryPower.power or 0)
-		local color = PowerBarColor[entryPower.powerType] or PowerBarColor[0]
-		if color then
-			slot.powerBar:SetStatusBarColor(color.r, color.g, color.b, 0.9)
-		else
-			slot.powerBar:SetStatusBarColor(0.0, 0.5, 1.0, 0.9)
-		end
-		slot.powerBar:Show()
-		return
-	end
-
-	-- Live Retail WoW unit power API calls return secret numbers in tainted contexts.
-	-- Lua arithmetic and > 0 comparisons on secret numbers cause fatal runtime crashes.
-	-- Live resource bar updates are safely disabled to guarantee clean frame loading.
-	slot.powerBar:Hide()
-end
-
-local function UpdateAbsorbState(slot, entryAbsorb)
-	if not slot or not slot.absorbBar then return end
-
-	-- In developer test mode, demonstrate simulated absorb/shield overlays
-	if ns.testModeActive then
-		if entryAbsorb and entryAbsorb > 0 then
-			slot.absorbBar:SetMinMaxValues(0, 100)
-			slot.absorbBar:SetValue(entryAbsorb)
-			slot.absorbBar:Show()
-		else
-			slot.absorbBar:Hide()
-		end
-		return
-	end
-
-	-- Live Retail WoW UnitGetTotalAbsorbs returns secret numbers in tainted contexts.
-	-- Lua comparisons on secret numbers cause fatal runtime crashes.
-	-- Live absorb overlay updates are safely disabled to guarantee clean frame loading.
-	slot.absorbBar:Hide()
-end
-
-local function UpdateDefensiveState(slot, entryDefensive)
-	if not slot or not slot.defensiveFrame then return end
-
-	-- In developer test mode, demonstrate simulated self-defensive icons
-	if ns.testModeActive then
-		if entryDefensive and entryDefensive.icon then
-			slot.defensiveIcon:SetTexture(entryDefensive.icon)
-			slot.defensiveFrame:Show()
-		else
-			slot.defensiveFrame:Hide()
-		end
-		return
-	end
-
-	-- Live Retail WoW aura scanning on party units can inspect restricted/secret fields in tainted contexts.
-	-- Live defensive aura updates are safely disabled to guarantee clean frame loading.
-	slot.defensiveFrame:Hide()
 end
 
 local function UpdateSlot(slot, unit)
@@ -1111,18 +960,9 @@ local function UpdateSlot(slot, unit)
 	RenderHotIcons(slot, GetUnitPlayerHoTs(unit))
 
 	local isDead = UnitIsDead(unit)
-	-- Modern Retail WoW UnitInRange returns a secret boolean in tainted contexts.
-	-- Branching on secret booleans is forbidden by the WoW engine.
-	-- In live mode, range state is treated as in-range to prevent secret boolean crashes.
-	local inRange = true
-
+	local inRange = isDead or UnitIsInRange(unit)
 	local hasDispel = not isDead and UnitHasDispellableAura(unit)
 	local hasAggro = not isDead and UnitHasAggro(unit)
-
-	UpdateClassBackground(slot, nil, isDead, inRange)
-	UpdatePowerState(slot, nil)
-	UpdateAbsorbState(slot, nil)
-	UpdateDefensiveState(slot, nil)
 
 	RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 end
@@ -1282,10 +1122,6 @@ local function UpdateTestSlot(slot, entry)
 	RenderRoleIcon(slot, entry.role)
 	RenderHealthFraction(slot, entry.healthPct)
 	RenderHotIcons(slot, entry.hots)
-	UpdateClassBackground(slot, entry.class, entry.dead, entry.inRange)
-	UpdatePowerState(slot, entry)
-	UpdateAbsorbState(slot, entry.absorb)
-	UpdateDefensiveState(slot, entry.defensive)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
 
 	if entry.danger then
@@ -1321,31 +1157,28 @@ function ns.RefreshRoster()
 
 	ns.pendingRosterRefresh = false
 	ns.UpdateActiveHoTSpells()
-	local rawUnits = GetGroupUnits()
 	local units = SortedRoster()
 	for i = 1, MAX_SLOTS do
 		UpdateSlot(slots[i], units[i])
 	end
 	container:SetShown(#units > 0)
 
-	if ns.debugSecure or ns.debugRoster then
-		print(string.format("|cff33ff99[MistPanel Roster]|r inGroup=%s inRaid=%s rawCount=%d sortedCount=%d testMode=%s",
-			tostring(IsInGroup()), tostring(IsInRaid()), #rawUnits, #units, tostring(ns.testModeActive)))
-		print("  Raw units: " .. (#rawUnits > 0 and table.concat(rawUnits, ", ") or "none"))
-		print("  Sorted units: " .. (#units > 0 and table.concat(units, ", ") or "none"))
-		for i = 1, MAX_SLOTS do
-			local s = slots[i]
-			local u = s.unit
-			local attrUnit = s.frame:GetAttribute("unit")
-			local shown = s.frame:IsShown() and "SHOWN" or "hidden"
-			local parentName = s.frame:GetParent() and s.frame:GetParent():GetName() or "nil"
-			if u and UnitExists(u) then
-				local name = UnitName(u) or "unknown"
-				local role = GetUnitRole(u)
-				print(string.format("  - Slot%d: frame=%s unit=%s (attr=%s) role=%s name=%s (parent=%s)",
-					i, shown, u, tostring(attrUnit), role, name, parentName))
-			else
-				print(string.format("  - Slot%d: frame=%s (no unit assigned, parent=%s)", i, shown, parentName))
+	if ns.debugSecure then
+		print(string.format("|cff33ff99[MistPanel Secure]|r inGroup=%s inRaid=%s count=%d",
+			tostring(IsInGroup()), tostring(IsInRaid()), #units))
+		if not IsInGroup() then
+			print("  (Solo mode: panel hidden)")
+		else
+			for i = 1, MAX_SLOTS do
+				local u = slots[i].unit
+				local attrUnit = slots[i].frame:GetAttribute("unit")
+				if u and UnitExists(u) then
+					local name = UnitName(u) or "unknown"
+					local role = GetUnitRole(u)
+					print(string.format("  slot%d -> unit=%s -> attrUnit=%s -> %s -> %s", i, u, tostring(attrUnit), role, name))
+				else
+					print(string.format("  slot%d -> (hidden)", i))
+				end
 			end
 		end
 	end
@@ -1422,7 +1255,6 @@ local AUDIT_FRAME_SPECS = {
 	{ name = "PartyMemberFrame2", label = "PartyMemberFrame2 (Legacy Standard Frame 2)" },
 	{ name = "PartyMemberFrame3", label = "PartyMemberFrame3 (Legacy Standard Frame 3)" },
 	{ name = "PartyMemberFrame4", label = "PartyMemberFrame4 (Legacy Standard Frame 4)" },
-	{ name = "PartyMemberBackground", label = "PartyMemberBackground" },
 }
 
 local function ResolveFrameObject(nameStr)
@@ -1448,11 +1280,6 @@ local function SuppressSingleFrame(frame)
 	if not frame then return end
 	pcall(function()
 		if not InCombatLockdown() then
-			frame:UnregisterAllEvents()
-			frame:Hide()
-			if HiddenFrame and frame ~= HiddenFrame then
-				frame:SetParent(HiddenFrame)
-			end
 			RegisterStateDriver(frame, "visibility", "hide")
 		end
 	end)
@@ -1463,9 +1290,6 @@ local function UnsuppressSingleFrame(frame)
 	pcall(function()
 		if not InCombatLockdown() then
 			UnregisterStateDriver(frame, "visibility")
-			if frame:GetParent() == HiddenFrame then
-				frame:SetParent(UIParent)
-			end
 		end
 	end)
 end
@@ -1485,23 +1309,16 @@ function ns.ApplyBlizzardPartyFrameSuppression()
 
 	ns.pendingBlizzardSuppression = false
 
-	-- 1. Modern Retail PartyFrame & Dynamic FramePool Members
+	-- 1. Modern Retail PartyFrame & Member Frames
 	if PartyFrame then
 		SuppressSingleFrame(PartyFrame)
-		if PartyFrame.PartyMemberFramePool then
-			pcall(function()
-				for child in PartyFrame.PartyMemberFramePool:EnumerateActive() do
-					SuppressSingleFrame(child)
-				end
-			end)
-		end
 		for i = 1, 4 do
 			local mf = PartyFrame["MemberFrame" .. i] or PartyFrame["PartyMemberFrame" .. i]
 			if mf then SuppressSingleFrame(mf) end
 		end
 	end
 
-	-- 2. CompactPartyFrame & CompactPartyFrameMember1..5
+	-- 2. CompactPartyFrame & Member Frames
 	if CompactPartyFrame then
 		SuppressSingleFrame(CompactPartyFrame)
 		for i = 1, 5 do
@@ -1510,37 +1327,19 @@ function ns.ApplyBlizzardPartyFrameSuppression()
 		end
 	end
 
-	-- 3. CompactRaidFrameContainer, CompactRaidFrameManager & Raid Groups
+	-- 3. CompactRaidFrameContainer & Members (Raid-Style Party Frames)
 	if CompactRaidFrameContainer then
 		SuppressSingleFrame(CompactRaidFrameContainer)
 	end
 	if CompactRaidFrameManager then
 		SuppressSingleFrame(CompactRaidFrameManager)
-		if CompactRaidFrameManager_SetSetting then
-			pcall(function()
-				CompactRaidFrameManager_SetSetting("IsShown", "0")
-			end)
-		end
 	end
-
-	for g = 1, 8 do
-		local grp = _G["CompactRaidGroup" .. g]
-		if grp then SuppressSingleFrame(grp) end
-		for m = 1, 5 do
-			local member = _G["CompactRaidGroup" .. g .. "Member" .. m]
-			if member then SuppressSingleFrame(member) end
-		end
-	end
-
 	for i = 1, 5 do
 		local crf = _G["CompactRaidFrame" .. i]
 		if crf then SuppressSingleFrame(crf) end
 	end
 
-	-- 4. Legacy PartyMemberFrame1..4 & Background
-	if PartyMemberBackground then
-		SuppressSingleFrame(PartyMemberBackground)
-	end
+	-- 4. Legacy PartyMemberFrame1..4
 	for i = 1, 4 do
 		local pmf = _G["PartyMemberFrame" .. i]
 		if pmf then SuppressSingleFrame(pmf) end
@@ -1548,7 +1347,7 @@ function ns.ApplyBlizzardPartyFrameSuppression()
 
 	if ns.debugBlizzard then
 		local elvDetected = (_G["ElvUI"] or _G["ElvUF"]) and true or false
-		print(string.format("|cff33ff99[MistPanel Blizzard]|r Advanced ElvUI-proven suppression applied. ElvUI detected=%s", tostring(elvDetected)))
+		print(string.format("|cff33ff99[MistPanel Blizzard]|r Exhaustive multi-frame suppression applied. ElvUI detected=%s", tostring(elvDetected)))
 	end
 end
 
@@ -1577,7 +1376,7 @@ function ns.SetHideBlizzardPartyFrames(enabled)
 end
 
 function ns.PrintBlizzardDebug()
-	print("|cff33ff99[MistPanel Blizzard]|r Deep Runtime Frame Audit:")
+	print("|cff33ff99[MistPanel Blizzard]|r Status & Exhaustive Frame Audit:")
 	print("  hideBlizzardPartyFrames setting: " .. tostring(ns.db.hideBlizzardPartyFrames))
 	print("  InCombatLockdown: " .. tostring(InCombatLockdown()))
 	local elvDetected = (_G["ElvUI"] or _G["ElvUF"]) and true or false
@@ -1589,29 +1388,11 @@ function ns.PrintBlizzardDebug()
 			local shown = obj:IsShown() and "SHOWN" or "hidden"
 			local visible = obj:IsVisible() and "|cffff0000[VISIBLE]|r" or "[not visible]"
 			local alpha = obj:GetAlpha()
-			local scale = obj:GetEffectiveScale()
 			local prot = obj:IsProtected() and "protected" or "unprotected"
 			local parent = obj:GetParent() and obj:GetParent():GetName() or "nil"
-			local objType = obj.GetObjectType and obj:GetObjectType() or "Frame"
-			print(string.format("  - %s (%s): %s %s (alpha=%.2f, scale=%.2f, %s, parent=%s)",
-				spec.label, objType, shown, visible, alpha, scale, prot, parent))
+			print(string.format("  - %s: %s %s (alpha=%.1f, %s, parent=%s)",
+				spec.label, shown, visible, alpha, prot, parent))
 		end
-	end
-
-	if PartyFrame and PartyFrame.PartyMemberFramePool then
-		local count = 0
-		pcall(function()
-			for child in PartyFrame.PartyMemberFramePool:EnumerateActive() do
-				count = count + 1
-				local cName = child:GetName() or "AnonymousPoolFrame"
-				local cShown = child:IsShown() and "SHOWN" or "hidden"
-				local cVis = child:IsVisible() and "|cffff0000[VISIBLE]|r" or "[not visible]"
-				local cParent = child:GetParent() and child:GetParent():GetName() or "nil"
-				print(string.format("  - PartyFramePool Active Member %d (%s): %s %s (parent=%s)",
-					count, cName, cShown, cVis, cParent))
-			end
-		end)
-		print("  PartyFrame.PartyMemberFramePool active count: " .. tostring(count))
 	end
 end
 
