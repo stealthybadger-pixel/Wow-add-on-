@@ -210,16 +210,16 @@ local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Extended to demonstrate My HoT visual layout (with EQ bars), Role Gutter Absorb Bar, Role Gutter Threat Bar, and Targeted Danger prediction:
--- Slot 1: Tank with 100% full shield (728/728) + Full threat (3/3) + Rage power bar + 2 active HoTs + Danger
--- Slot 2: Healer with 0% shield + No threat (0/3) + Mana power bar + 1 active HoT
--- Slot 3: DPS 1 with 50% depleted shield (544/1088) + Medium threat (2/3) + Energy power bar + 3 active HoTs + Pink Dispel + Danger
--- Slot 4: DPS 2 with 0% shield + Low threat (1/3) + Mana power bar
--- Slot 5: DPS 3 with 0% shield + No threat (0/3) + Mana power bar + 1 nearly-expired HoT
+-- Extended to demonstrate My HoT visual layout (with EQ bars), Role Gutter Absorb Bar, Granular Role Gutter Threat Bar, and Targeted Danger prediction:
+-- Slot 1: Tank with 100% full shield (728/728) + 100% threat + Rage power bar + 2 active HoTs + Danger
+-- Slot 2: Healer with 0% shield + 0% threat + Mana power bar + 1 active HoT
+-- Slot 3: DPS 1 with 50% depleted shield (544/1088) + 75% threat + Energy power bar + 3 active HoTs + Pink Dispel + Danger
+-- Slot 4: DPS 2 with 0% shield + 40% threat + Mana power bar
+-- Slot 5: DPS 3 with 0% shield + 15% threat + Mana power bar + 1 nearly-expired HoT
 local TEST_ROSTER = {
 	{
 		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
-		powerType = 1, power = 60, maxPower = 100, absorb = 728, maxAbsorb = 728, maxHealth = 100, threat = 3,
+		powerType = 1, power = 60, maxPower = 100, absorb = 728, maxAbsorb = 728, maxHealth = 100, threatPct = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4.2 },
@@ -228,7 +228,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "HEALER", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threat = 0,
+		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 0,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
 		},
@@ -236,7 +236,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
-		powerType = 3, power = 90, maxPower = 100, absorb = 544, maxAbsorb = 1088, maxHealth = 100, threat = 2,
+		powerType = 3, power = 90, maxPower = 100, absorb = 544, maxAbsorb = 1088, maxHealth = 100, threatPct = 75,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 2.4 },
@@ -246,13 +246,13 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threat = 1,
+		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 40,
 		hots = {},
 		danger = nil
 	},
 	{
 		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threat = 0,
+		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 15,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
 		},
@@ -1098,9 +1098,12 @@ end
 local function UpdateThreatState(slot, entry)
 	if not slot or not slot.threatBar then return end
 
+	-- In developer test mode (/mistpanel test):
+	-- Demonstrates granular threat intensity percentages (0%, 15%, 40%, 75%, 100%)
 	if ns.testModeActive and entry then
-		local threatVal = entry.threat or 0
-		slot.threatBar:SetMinMaxValues(0, 3)
+		local threatVal = entry.threatPct or entry.threat or 0
+		if threatVal <= 3 then threatVal = threatVal * 33.3 end
+		slot.threatBar:SetMinMaxValues(0, 100)
 		slot.threatBar:SetValue(threatVal)
 		slot.threatBar:Show()
 		return
@@ -1108,19 +1111,43 @@ local function UpdateThreatState(slot, entry)
 
 	local unit = slot.unit
 	if not unit or not UnitExists(unit) then
-		slot.threatBar:SetMinMaxValues(0, 3)
+		slot.threatBar:SetMinMaxValues(0, 100)
 		slot.threatBar:SetValue(0)
 		return
 	end
 
-	local status = UnitThreatSituation(unit)
-	if status and status > 0 then
-		slot.threatBar:SetMinMaxValues(0, 3)
-		slot.threatBar:SetValue(status)
-	else
-		slot.threatBar:SetMinMaxValues(0, 3)
-		slot.threatBar:SetValue(0)
+	-- Granular Threat Percentage (0 to 100%):
+	-- Attempts UnitDetailedThreatSituation(unit, "target") for smooth 0-100% threat percentage when an enemy target is selected.
+	-- Safely falls back to coarse UnitThreatSituation(unit) (0%, 33%, 66%, 100%) when no enemy target is selected.
+	local threatPct = 0
+	local fetchOk = pcall(function()
+		if UnitExists("target") and UnitCanAttack("player", "target") and UnitDetailedThreatSituation then
+			local _, _, pct = UnitDetailedThreatSituation(unit, "target")
+			if pct then
+				threatPct = pct
+				return
+			end
+		end
+
+		local status = UnitThreatSituation(unit)
+		if status == 3 then
+			threatPct = 100
+		elseif status == 2 then
+			threatPct = 66
+		elseif status == 1 then
+			threatPct = 33
+		else
+			threatPct = 0
+		end
+	end)
+
+	if not fetchOk then
+		local status = UnitThreatSituation(unit)
+		threatPct = (status == 3 and 100) or (status == 2 and 66) or (status == 1 and 33) or 0
 	end
+
+	slot.threatBar:SetMinMaxValues(0, 100)
+	slot.threatBar:SetValue(threatPct)
 	slot.threatBar:Show()
 end
 
