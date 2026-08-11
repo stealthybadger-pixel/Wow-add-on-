@@ -218,35 +218,36 @@ function ns.UpdateActiveHoTSpells()
 end
 
 -- Fixed colors for Phase 2 combat states
-local COLOR_BORDER_DEFAULT = { 0.15, 0.15, 0.15, 0.9 }
+local COLOR_BORDER_DEFAULT = { 0.00, 0.00, 0.00, 1.0 } -- Solid 1px black border
 local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Class colour source palette with per-class brightness normalized multipliers
 local CLASS_COLORS = {
-	DEATHKNIGHT = { 0.77, 0.12, 0.23, 0.32 },
-	DEMONHUNTER = { 0.64, 0.19, 0.79, 0.32 },
-	DRUID       = { 1.00, 0.49, 0.04, 0.30 },
-	EVOKER      = { 0.20, 0.58, 0.50, 0.34 },
-	HUNTER      = { 0.67, 0.83, 0.45, 0.26 },
-	MAGE        = { 0.25, 0.78, 0.92, 0.32 },
-	MONK        = { 0.00, 1.00, 0.60, 0.24 },
-	PALADIN     = { 0.96, 0.55, 0.73, 0.30 },
-	PRIEST      = { 1.00, 1.00, 1.00, 0.20 },
-	ROGUE       = { 1.00, 0.96, 0.41, 0.25 },
-	SHAMAN      = { 0.00, 0.44, 0.87, 0.34 },
-	WARLOCK     = { 0.53, 0.53, 0.93, 0.32 },
-	WARRIOR     = { 0.78, 0.62, 0.43, 0.32 },
+	DEATHKNIGHT = { 0.77, 0.12, 0.23, 0.38 },
+	DEMONHUNTER = { 0.64, 0.19, 0.79, 0.38 },
+	DRUID       = { 1.00, 0.49, 0.04, 0.35 },
+	EVOKER      = { 0.20, 0.58, 0.50, 0.40 },
+	HUNTER      = { 0.67, 0.83, 0.45, 0.30 },
+	MAGE        = { 0.25, 0.78, 0.92, 0.38 },
+	MONK        = { 0.00, 1.00, 0.60, 0.28 },
+	PALADIN     = { 0.96, 0.55, 0.73, 0.35 },
+	PRIEST      = { 1.00, 1.00, 1.00, 0.22 },
+	ROGUE       = { 1.00, 0.96, 0.41, 0.28 },
+	SHAMAN      = { 0.00, 0.44, 0.87, 0.40 },
+	WARLOCK     = { 0.53, 0.53, 0.93, 0.38 },
+	WARRIOR     = { 0.78, 0.62, 0.43, 0.38 },
 }
 
 local function UpdateClassBackground(slot, classToken)
 	if not slot or not slot.bgTexture then return end
 	local color = CLASS_COLORS[classToken]
 	if color then
-		local mult = color[4] or 0.30
-		slot.bgTexture:SetColorTexture(color[1] * mult, color[2] * mult, color[3] * mult, 0.90)
+		local mult = color[4] or 0.35
+		local base = 0.03
+		slot.bgTexture:SetColorTexture(base + color[1] * mult, base + color[2] * mult, base + color[3] * mult, 0.95)
 	else
-		slot.bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.90)
+		slot.bgTexture:SetColorTexture(0.08, 0.08, 0.08, 0.95)
 	end
 end
 
