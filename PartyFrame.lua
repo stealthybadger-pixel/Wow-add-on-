@@ -491,9 +491,11 @@ end
 local function SetSlotGlow(slot, r, g, b, baseAlpha)
 	if not slot.glowLayers then return end
 	baseAlpha = baseAlpha or 1.0
-	local alphas = { 0.40, 0.24, 0.12, 0.05 }
+	local alphas = { 0.40, 0.20 }
 	for idx, layer in ipairs(slot.glowLayers) do
-		layer:SetBackdropBorderColor(r, g, b, alphas[idx] * baseAlpha)
+		if alphas[idx] then
+			layer:SetBackdropBorderColor(r, g, b, alphas[idx] * baseAlpha)
+		end
 	end
 end
 
@@ -537,7 +539,7 @@ local function CreateSlot(index)
 	glowContainer:EnableMouse(false)
 
 	local glowLayers = {}
-	local glowOffsets = { 1, 2, 3, 4 }
+	local glowOffsets = { 1, 2 }
 	for i, offset in ipairs(glowOffsets) do
 		local layer = CreateFrame("Frame", nil, glowContainer, "BackdropTemplate")
 		layer:SetPoint("TOPLEFT", f, "TOPLEFT", -offset, offset)
