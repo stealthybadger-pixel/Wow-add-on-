@@ -222,31 +222,31 @@ local COLOR_BORDER_DEFAULT = { 0.15, 0.15, 0.15, 0.9 }
 local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
--- Class colour source palette (darkened and desaturated for subtle inner frame background tint)
+-- Class colour source palette with per-class brightness normalized multipliers
 local CLASS_COLORS = {
-	DEATHKNIGHT = { 0.77, 0.12, 0.23 },
-	DEMONHUNTER = { 0.64, 0.19, 0.79 },
-	DRUID       = { 1.00, 0.49, 0.04 },
-	EVOKER      = { 0.20, 0.58, 0.50 },
-	HUNTER      = { 0.67, 0.83, 0.45 },
-	MAGE        = { 0.25, 0.78, 0.92 },
-	MONK        = { 0.00, 1.00, 0.60 },
-	PALADIN     = { 0.96, 0.55, 0.73 },
-	PRIEST      = { 1.00, 1.00, 1.00 },
-	ROGUE       = { 1.00, 0.96, 0.41 },
-	SHAMAN      = { 0.00, 0.44, 0.87 },
-	WARLOCK     = { 0.53, 0.53, 0.93 },
-	WARRIOR     = { 0.78, 0.62, 0.43 },
+	DEATHKNIGHT = { 0.77, 0.12, 0.23, 0.32 },
+	DEMONHUNTER = { 0.64, 0.19, 0.79, 0.32 },
+	DRUID       = { 1.00, 0.49, 0.04, 0.30 },
+	EVOKER      = { 0.20, 0.58, 0.50, 0.34 },
+	HUNTER      = { 0.67, 0.83, 0.45, 0.26 },
+	MAGE        = { 0.25, 0.78, 0.92, 0.32 },
+	MONK        = { 0.00, 1.00, 0.60, 0.24 },
+	PALADIN     = { 0.96, 0.55, 0.73, 0.30 },
+	PRIEST      = { 1.00, 1.00, 1.00, 0.20 },
+	ROGUE       = { 1.00, 0.96, 0.41, 0.25 },
+	SHAMAN      = { 0.00, 0.44, 0.87, 0.34 },
+	WARLOCK     = { 0.53, 0.53, 0.93, 0.32 },
+	WARRIOR     = { 0.78, 0.62, 0.43, 0.32 },
 }
 
 local function UpdateClassBackground(slot, classToken)
 	if not slot or not slot.bgTexture then return end
 	local color = CLASS_COLORS[classToken]
 	if color then
-		-- Darken (x 0.18) & desaturate for a subtle, elegant inner frame background tint
-		slot.bgTexture:SetColorTexture(color[1] * 0.18, color[2] * 0.18, color[3] * 0.18, 0.85)
+		local mult = color[4] or 0.30
+		slot.bgTexture:SetColorTexture(color[1] * mult, color[2] * mult, color[3] * mult, 0.90)
 	else
-		slot.bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.85)
+		slot.bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.90)
 	end
 end
 
