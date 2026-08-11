@@ -50,7 +50,8 @@ Active shield absorbs display as a horizontal cyan/blue bar strictly within the 
 Behaviour:  
 • The absorb bar is the exact same height as the health bar (7px).  
 • Aligned vertically with the health bar in the main content area.  
-• Runs right-to-left (filling from the vertical divider rightward edge leftward into the gutter).  
+• Shows percentage remaining of the current shield amount (not shield size relative to max health).  
+• Starts full when a shield is applied, and drains right-to-left as the shield is consumed.  
 • As absorbs are consumed, the bar retreats rightward toward the vertical divider.  
 • Renders behind the role icon so the role icon remains clear, visible, and subordinate.  
 • No text or numbers are displayed.

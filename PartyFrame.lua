@@ -210,16 +210,16 @@ local COLOR_BORDER_AGGRO   = { 1.00, 0.00, 0.00, 1.0 }
 local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
--- Extended to demonstrate My HoT visual layout (with EQ bars) and Targeted Danger prediction:
--- Slot 1: Tank with Rage power bar + 2 active HoTs + Incoming Danger Cast (Shadow Bolt at 70% fill)
--- Slot 2: Healer with Mana power bar + 1 active HoT
--- Slot 3: DPS 1 with Energy power bar + 3 active HoTs + Pink Dispel + Incoming Danger Cast (Fireball at 90% fill)
--- Slot 4: DPS 2 with Mana power bar
--- Slot 5: DPS 3 with Mana power bar + 1 nearly-expired HoT
+-- Extended to demonstrate My HoT visual layout (with EQ bars), Role Gutter Absorb Bar, and Targeted Danger prediction:
+-- Slot 1: Tank with 100% full shield (40k/40k in role gutter) + Rage power bar + 2 active HoTs + Danger
+-- Slot 2: Healer with 0% shield + Mana power bar + 1 active HoT
+-- Slot 3: DPS 1 with 50% depleted shield (15k/30k in role gutter) + Energy power bar + 3 active HoTs + Pink Dispel + Danger
+-- Slot 4: DPS 2 with 0% shield + Mana power bar
+-- Slot 5: DPS 3 with 0% shield + Mana power bar + 1 nearly-expired HoT
 local TEST_ROSTER = {
 	{
 		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
-		powerType = 1, power = 60, maxPower = 100, absorb = 40, maxHealth = 100,
+		powerType = 1, power = 60, maxPower = 100, absorb = 40, maxAbsorb = 40, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4.2 },
@@ -228,7 +228,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "HEALER", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxHealth = 100,
+		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
 		},
@@ -236,7 +236,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
-		powerType = 3, power = 90, maxPower = 100, absorb = 20, maxHealth = 100,
+		powerType = 3, power = 90, maxPower = 100, absorb = 15, maxAbsorb = 30, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 2.4 },
@@ -246,13 +246,13 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxHealth = 100,
+		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100,
 		hots = {},
 		danger = nil
 	},
 	{
 		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
-		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxHealth = 100,
+		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
 		},
@@ -1011,9 +1011,14 @@ end
 local function UpdateAbsorbState(slot, entryAbsorb)
 	if not slot or not slot.absorbBar then return end
 
+	-- In developer test mode (/mistpanel test):
+	-- Demonstrates percentage remaining of current shield amount:
+	-- Slot 1: Full shield (40k / 40k = 100% full bar in role gutter)
+	-- Slot 3: Partially depleted shield (15k / 30k = 50% bar in role gutter)
+	-- Slot 2/4/5: No shield (0%)
 	if ns.testModeActive and entryAbsorb then
-		if entryAbsorb.absorb and entryAbsorb.maxHealth then
-			slot.absorbBar:SetMinMaxValues(0, entryAbsorb.maxHealth)
+		if entryAbsorb.absorb and entryAbsorb.maxAbsorb and entryAbsorb.maxAbsorb > 0 then
+			slot.absorbBar:SetMinMaxValues(0, entryAbsorb.maxAbsorb)
 			slot.absorbBar:SetValue(entryAbsorb.absorb)
 		else
 			slot.absorbBar:SetMinMaxValues(0, 1)
@@ -1031,7 +1036,8 @@ local function UpdateAbsorbState(slot, entryAbsorb)
 	end
 
 	-- Pass absorbs and maxHealth directly into C++ StatusBar widget methods.
-	-- No Lua arithmetic (/), zero-comparisons (> 0), or percentage math on secret values.
+	-- Modern Retail WoW unit absorb calls return secret numbers in tainted contexts,
+	-- so we must not perform Lua arithmetic (/), comparisons (>), or percentage math on secret values.
 	local maxHealth = UnitHealthMax(unit)
 	local absorbs = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)
 
