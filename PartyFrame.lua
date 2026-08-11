@@ -257,10 +257,14 @@ end
 -- Slot 2: Healer (Monk) with 0% shield + 0% threat + Mana power bar + 1 active HoT
 -- Slot 3: DPS 1 (Mage) with 50% depleted shield (544/1088) + 75% threat + Energy power bar + 3 active HoTs + Pink Dispel + Danger
 -- Slot 4: DPS 2 (Rogue) with 0% shield + 40% threat + Mana power bar
+-- Slot 1: Tank (Warrior) with 100% full shield (728/728) + 100% threat + Active Defensive Cooldown (soft gold gutter highlight) + Rage power bar + 2 active HoTs + Danger
+-- Slot 2: Healer (Monk) with 0% shield + 0% threat + Mana power bar + 1 active HoT
+-- Slot 3: DPS 1 (Mage) with 50% depleted shield (544/1088) + 75% threat + Active Defensive Cooldown + Energy power bar + 3 active HoTs + Pink Dispel + Danger
+-- Slot 4: DPS 2 (Rogue) with 0% shield + 40% threat + Mana power bar
 -- Slot 5: DPS 3 (Druid) with 0% shield + 15% threat + Mana power bar + 1 nearly-expired HoT
 local TEST_ROSTER = {
 	{
-		role = "TANK", class = "WARRIOR", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
+		role = "TANK", class = "WARRIOR", healthPct = 0.70, aggro = true, dispel = false, defensive = true, inRange = true, dead = false,
 		powerType = 1, power = 60, maxPower = 100, absorb = 728, maxAbsorb = 728, maxHealth = 100, threatPct = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
@@ -269,7 +273,7 @@ local TEST_ROSTER = {
 		danger = { icon = 136075, duration = 3.0, elapsed = 2.1 }
 	},
 	{
-		role = "HEALER", class = "MONK", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
+		role = "HEALER", class = "MONK", healthPct = 1.00, aggro = false, dispel = false, defensive = false, inRange = true, dead = false,
 		powerType = 0, power = 85, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 0,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
@@ -277,7 +281,7 @@ local TEST_ROSTER = {
 		danger = nil
 	},
 	{
-		role = "DAMAGER", class = "MAGE", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
+		role = "DAMAGER", class = "MAGE", healthPct = 0.50, aggro = true, dispel = true, defensive = true, inRange = true, dead = false,
 		powerType = 3, power = 90, maxPower = 100, absorb = 544, maxAbsorb = 1088, maxHealth = 100, threatPct = 75,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
@@ -287,13 +291,13 @@ local TEST_ROSTER = {
 		danger = { icon = 136075, duration = 3.0, elapsed = 2.7 }
 	},
 	{
-		role = "DAMAGER", class = "ROGUE", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
+		role = "DAMAGER", class = "ROGUE", healthPct = 0.35, aggro = false, dispel = false, defensive = false, inRange = true, dead = false,
 		powerType = 0, power = 100, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 40,
 		hots = {},
 		danger = nil
 	},
 	{
-		role = "DAMAGER", class = "DRUID", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
+		role = "DAMAGER", class = "DRUID", healthPct = 0.10, aggro = false, dispel = false, defensive = false, inRange = true, dead = false,
 		powerType = 0, power = 40, maxPower = 100, absorb = 0, maxAbsorb = 0, maxHealth = 100, threatPct = 15,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
@@ -479,6 +483,120 @@ local function GetUnitPlayerHoTs(unit)
 	return hots
 end
 
+-- Curated allowlist of major defensive cooldown spell IDs for all classes (with priority coverage for Paladin defensives)
+local DEFENSIVE_AURA_IDS = {
+	-- Paladin (Priority Live Test Case)
+	[642]    = true, -- Divine Shield
+	[1022]   = true, -- Blessing of Protection
+	[31850]  = true, -- Ardent Defender
+	[86659]  = true, -- Guardian of Ancient Kings
+	[184662] = true, -- Shield of Vengeance
+	[387174] = true, -- Eye of Tyr
+	[498]    = true, -- Divine Protection
+	[389539] = true, -- Sentinel
+	[204018] = true, -- Blessing of Spellwarding
+	[6940]   = true, -- Blessing of Sacrifice
+	[199448] = true, -- Ultimate Retribution
+
+	-- Warrior
+	[871]    = true, -- Shield Wall
+	[12975]  = true, -- Last Stand
+	[118038] = true, -- Die by the Sword
+	[23920]  = true, -- Spell Reflection
+	[132404] = true, -- Shield Block
+	[190456] = true, -- Ignore Pain
+
+	-- Druid
+	[22812]  = true, -- Barkskin
+	[61336]  = true, -- Survival Instincts
+	[102558] = true, -- Incarnation: Guardian of Ursoc
+	[200851] = true, -- Rage of the Sleeper
+
+	-- Mage
+	[45438]  = true, -- Ice Block
+	[414658] = true, -- Ice Cold
+	[235313] = true, -- Blazing Barrier
+	[110959] = true, -- Greater Invisibility
+	[11426]  = true, -- Ice Barrier
+	[235450] = true, -- Prismatic Barrier
+
+	-- Monk
+	[115203] = true, -- Fortifying Brew (Brewmaster)
+	[120954] = true, -- Fortifying Brew (Windwalker/Mistweaver)
+	[122783] = true, -- Diffuse Magic
+	[122278] = true, -- Dampen Harm
+	[122470] = true, -- Touch of Karma
+	[115176] = true, -- Zen Meditation
+
+	-- Shaman
+	[108271] = true, -- Astral Shift
+	[198838] = true, -- Earthen Wall Totem
+
+	-- Demon Hunter
+	[196555] = true, -- Netherwalk
+	[198589] = true, -- Blur
+	[196718] = true, -- Darkness
+	[187827] = true, -- Metamorphosis (Vengeance)
+	[203720] = true, -- Demon Spikes
+
+	-- Warlock
+	[104773] = true, -- Unending Resolve
+	[108416] = true, -- Dark Pact
+
+	-- Priest
+	[47585]  = true, -- Dispersion
+	[33206]  = true, -- Pain Suppression
+	[19236]  = true, -- Desperate Prayer
+	[47788]  = true, -- Guardian Spirit
+	[213610] = true, -- Holy Word: Salvation
+
+	-- Hunter
+	[186265] = true, -- Aspect of the Turtle
+	[264735] = true, -- Survival of the Fittest
+
+	-- Rogue
+	[5277]   = true, -- Evasion
+	[31224]  = true, -- Cloak of Shadows
+	[1966]   = true, -- Feint
+
+	-- Death Knight
+	[48707]  = true, -- Anti-Magic Shell
+	[48792]  = true, -- Icebound Fortitude
+	[55233]  = true, -- Vampiric Blood
+	[194679] = true, -- Rune Tap
+	[49028]  = true, -- Dancing Rune Weapon
+	[145629] = true, -- Anti-Magic Zone
+
+	-- Evoker
+	[363916] = true, -- Obsidian Scales
+	[374348] = true, -- Renewing Blaze
+	[370960] = true, -- Emerald Communion
+}
+
+local function HasDefensiveAura(unit)
+	if not unit or not UnitExists(unit) or not C_UnitAuras or not C_UnitAuras.GetAuraDataByIndex then
+		return false
+	end
+
+	for i = 1, 40 do
+		local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
+		if not aura then break end
+		if aura.spellId and DEFENSIVE_AURA_IDS[aura.spellId] then
+			return true
+		end
+	end
+	return false
+end
+
+local function UpdateDefensiveState(slot, active)
+	if not slot or not slot.defensiveHighlight then return end
+	if active then
+		slot.defensiveHighlight:Show()
+	else
+		slot.defensiveHighlight:Hide()
+	end
+end
+
 local function GetHealthColor(pct)
 	pct = math.max(0, math.min(1, pct or 0))
 	if pct > 0.5 then
@@ -563,6 +681,19 @@ local function CreateSlot(index)
 		layer:EnableMouse(false)
 		glowLayers[i] = layer
 	end
+
+	-- Defensive Cooldown Highlight (thin 1px soft white-gold border surrounding role column gutter only: X=0..ROLE_COLUMN_WIDTH)
+	local defensiveHighlight = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	defensiveHighlight:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+	defensiveHighlight:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, 0)
+	defensiveHighlight:SetFrameLevel(f:GetFrameLevel() + 8)
+	defensiveHighlight:EnableMouse(false)
+	defensiveHighlight:SetBackdrop({
+		edgeFile = "Interface\\Buttons\\WHITE8x8",
+		edgeSize = 1,
+	})
+	defensiveHighlight:SetBackdropBorderColor(1.0, 0.92, 0.55, 0.95) -- Soft White-Gold (#FFF0A0)
+	defensiveHighlight:Hide()
 
 	-- Dedicated border overlay frame at a higher FrameLevel (f:GetFrameLevel() + 10)
 	-- ensures the combat state outline is rendered above all interior slot content
@@ -756,6 +887,7 @@ local function CreateSlot(index)
 		frame = f,
 		bgTexture = bgTexture,
 		borderFrame = borderFrame,
+		defensiveHighlight = defensiveHighlight,
 		glowContainer = glowContainer,
 		glowLayers = glowLayers,
 		roleIcon = roleIcon,
@@ -1331,6 +1463,7 @@ local function UpdateSlot(slot, unit)
 	UpdatePowerState(slot, nil)
 	UpdateAbsorbState(slot, nil)
 	UpdateThreatState(slot, nil)
+	UpdateDefensiveState(slot, HasDefensiveAura(unit))
 
 	local isDead = UnitIsDead(unit)
 	local inRange = isDead or UnitIsInRange(unit)
@@ -1499,6 +1632,7 @@ local function UpdateTestSlot(slot, entry)
 	UpdatePowerState(slot, entry)
 	UpdateAbsorbState(slot, entry)
 	UpdateThreatState(slot, entry)
+	UpdateDefensiveState(slot, entry.defensive)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
 
 	if entry.danger then
@@ -1954,5 +2088,30 @@ function ns.PrintStatus()
 		print("  Live Health Bar Colour: |cffffaa00Static Green due to Retail restriction|r")
 	else
 		print("  Live Health Bar Colour: |cff00ff00Dynamic Green->Yellow->Red interpolation active|r")
+	end
+end
+
+function ns.PrintAuras(unit)
+	unit = unit or "target"
+	if unit == "" then unit = "target" end
+	if not UnitExists(unit) then
+		unit = "player"
+	end
+	print(string.format("|cff33ff99[MistPanel Auras]|r Auditing helpful auras on unit '%s' (%s):", unit, UnitName(unit) or "unknown"))
+	if not C_UnitAuras or not C_UnitAuras.GetAuraDataByIndex then
+		print("  C_UnitAuras.GetAuraDataByIndex unavailable.")
+		return
+	end
+	local count = 0
+	for i = 1, 40 do
+		local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
+		if not aura then break end
+		count = count + 1
+		local isDefensive = (aura.spellId and DEFENSIVE_AURA_IDS[aura.spellId]) and "|cff00ff00[DEFENSIVE MATCH]|r" or ""
+		print(string.format("  - #%d: %s (spellID=%s, icon=%s) %s",
+			i, tostring(aura.name), tostring(aura.spellId), tostring(aura.icon), isDefensive))
+	end
+	if count == 0 then
+		print("  No helpful auras found.")
 	end
 end

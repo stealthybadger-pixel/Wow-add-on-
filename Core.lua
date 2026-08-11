@@ -112,6 +112,10 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		if ns.PrintBlizzardDebug then
 			ns.PrintBlizzardDebug()
 		end
+	elseif cmd == "debugauras" or cmd == "auras" then
+		if ns.PrintAuras then
+			ns.PrintAuras(rest ~= "" and rest or nil)
+		end
 	elseif cmd == "status" then
 		ns.PrintStatus()
 	else
@@ -122,6 +126,7 @@ SlashCmdList["MISTPANEL"] = function(msg)
 		print("  /mistpanel resetpos | resetposition")
 		print("  /mistpanel test")
 		print("  /mistpanel debughots")
+		print("  /mistpanel debugauras [unit]")
 		print("  /mistpanel debugroster")
 		print("  /mistpanel debugthreat")
 		print("  /mistpanel debugsecure")

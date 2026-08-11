@@ -51,6 +51,14 @@ The left role-icon gutter carries two compact horizontal state bars rendered beh
 • Both bars remain inside the left role column and render behind the role icon so the role icon remains clear, visible, and readable.  
 • No text or numbers are displayed.
 
+5c\. Role Gutter Defensive Cooldown Indicator  
+When a party member has an active major defensive cooldown:  
+• A thin (1px) soft white-gold (`#FFF0A0`, `1.0, 0.92, 0.55, 0.95`) inner border highlights the **left role-icon gutter only** (X = 0 to `ROLE_COLUMN_WIDTH`).  
+• It does NOT highlight the main health/HoT content area or the outer unit frame border.  
+• It is strictly binary: defensive aura present = gutter highlight visible; no defensive aura = hidden.  
+• It is evaluated against a curated, conservative spell ID allowlist (with priority coverage for Paladin defensives like Divine Shield, Blessing of Protection, Ardent Defender, Guardian of Ancient Kings, Shield of Vengeance, Eye of Tyr, Divine Protection, Sentinel).  
+• It operates independently of full-frame combat outlines (Pink Dispel / Red Aggro) and does not obscure the role icon, absorb bar, or threat bar. No timers, text, or extra icons are displayed.
+
 6\. Duration-Based Healing Effects  
 Only the user's own healing effects with a duration are visualized.
 
