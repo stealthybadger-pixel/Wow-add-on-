@@ -491,11 +491,22 @@ end
 local function SetSlotGlow(slot, r, g, b, baseAlpha)
 	if not slot.glowLayers then return end
 	baseAlpha = baseAlpha or 1.0
+	if baseAlpha <= 0 then
+		if slot.glowContainer then
+			slot.glowContainer:Hide()
+		end
+		for _, layer in ipairs(slot.glowLayers) do
+			layer:Hide()
+		end
+		return
+	end
+	if slot.glowContainer then
+		slot.glowContainer:Show()
+	end
 	local alphas = { 0.40, 0.20 }
 	for idx, layer in ipairs(slot.glowLayers) do
-		if alphas[idx] then
-			layer:SetBackdropBorderColor(r, g, b, alphas[idx] * baseAlpha)
-		end
+		layer:Show()
+		layer:SetBackdropBorderColor(r, g, b, alphas[idx] * baseAlpha)
 	end
 end
 
@@ -744,6 +755,7 @@ local function CreateSlot(index)
 		frame = f,
 		bgTexture = bgTexture,
 		borderFrame = borderFrame,
+		glowContainer = glowContainer,
 		glowLayers = glowLayers,
 		roleIcon = roleIcon,
 		divider = divider,
@@ -811,9 +823,9 @@ local function LayoutSlots()
 		local slot = slots[i]
 		slot.frame:ClearAllPoints()
 		if i == 1 then
-			slot.frame:SetPoint("TOP", container, "TOP", 0, 0)
+			slot.frame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
 		else
-			slot.frame:SetPoint("TOP", slots[i - 1].frame, "BOTTOM", 0, -FRAME_GAP)
+			slot.frame:SetPoint("TOPLEFT", slots[i - 1].frame, "BOTTOMLEFT", 0, -FRAME_GAP)
 		end
 	end
 end
