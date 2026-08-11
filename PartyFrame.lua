@@ -570,12 +570,12 @@ local function CreateSlot(index)
 	roleIcon:SetSize(ROLE_ICON_SIZE, ROLE_ICON_SIZE)
 	roleIcon:SetPoint("CENTER", f, "TOPLEFT", ROLE_COLUMN_WIDTH / 2, -25)
 
-	-- Subtle vertical divider separating role column from main area
+	-- Solid 1px black vertical divider separating role column from main area
 	local divider = f:CreateTexture(nil, "ARTWORK")
 	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -1)
 	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, 1)
 	divider:SetWidth(1)
-	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
+	divider:SetColorTexture(0.00, 0.00, 0.00, 1.0)
 
 	-- Pre-created HoT icon frames pool with duration bar DIRECTLY ABOVE each 11x11 icon
 	local hotIcons = {}
@@ -641,9 +641,9 @@ local function CreateSlot(index)
 	bgTexture:SetAllPoints(f)
 	bgTexture:SetColorTexture(0.06, 0.06, 0.06, 0.95)
 
-	-- Thin 3px primary resource bar anchored at bottom right of role column (X=47 to 209, Y=1 to 4)
+	-- Thin 3px primary resource bar anchored at bottom right of role column (X=46 to 209, Y=1 to 4)
 	local powerBar = CreateFrame("StatusBar", nil, f)
-	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH + 1, 1)
+	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, 1)
 	powerBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
 	powerBar:SetHeight(3)
 	powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
@@ -655,9 +655,9 @@ local function CreateSlot(index)
 	powerBarBg:SetAllPoints(powerBar)
 	powerBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
 
-	-- 7px health bar anchored directly above powerBar with exact matching X=47 to 209 left/right alignment (Y=5 to 12)
+	-- 7px health bar anchored directly above powerBar with exact matching X=46 to 209 left/right alignment (Y=5 to 12)
 	local healthBar = CreateFrame("StatusBar", nil, f)
-	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH + 1, 5)
+	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, 5)
 	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 5)
 	healthBar:SetHeight(7)
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
