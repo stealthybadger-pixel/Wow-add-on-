@@ -29,18 +29,20 @@ Roles shown: Tank, Healer, DPS.
 
 No player name is displayed. The stable party ordering and role icon provide identity sufficient for this personal use case.
 
-5\. Health  
+5\. Health & Primary Resource  
 Health is NOT a full-frame fill.
 
-Health is one thin horizontal bar anchored along the bottom of the unit frame.
+Health is a thin horizontal bar anchored along the bottom of the main content area (starting after the role column).
 
 Behaviour:  
-• Full health \= full-width line.  
+• Full health = full-width line.  
 • Damage causes the line to retreat from right to left.  
 • Length is the primary health measure.  
 • Colour also communicates health state, moving from green at high health toward red at low/critical health.  
 • The line is one health-state colour at a time; it is not a decorative left-to-right gradient.  
 • No health number or percentage is displayed.
+
+A very thin (3px) primary resource bar sits directly below the health bar in the main content area (starting after `ROLE_COLUMN_WIDTH`). It displays the unit's primary resource (Mana, Rage, Energy, Focus, Runic Power) coloured by power type using standard WoW power colours. It occupies the main content area only, keeping the left role icon gutter completely clear. No numeric values or text are displayed.
 
 6\. Duration-Based Healing Effects  
 Only the user's own healing effects with a duration are visualized.
@@ -103,7 +105,7 @@ Each visual channel has one job:
 Do not add:  
 • Names.  
 • Health percentages/numbers.  
-• Mana/resource values.  
+• Numeric Mana/resource numbers or text.  
 • Portraits.  
 • Cast bars unless explicitly added in a future specification.  
 • HoT expiry pulses/flashes/prompts.  

@@ -211,14 +211,15 @@ local COLOR_BORDER_DISPEL  = { 1.00, 0.20, 0.80, 1.0 } -- Pink / Magenta
 
 -- Fixed simulated roster for "/mistpanel test" (developer test mode).
 -- Extended to demonstrate My HoT visual layout (with EQ bars) and Targeted Danger prediction:
--- Slot 1: Tank with 2 active HoTs + Incoming Danger Cast (Shadow Bolt at 70% fill)
--- Slot 2: Healer with 1 active HoT
--- Slot 3: DPS 1 with 3 active HoTs + Pink Dispel + Incoming Danger Cast (Fireball at 90% fill)
--- Slot 4: DPS 2 with 0 HoTs
--- Slot 5: DPS 3 with 1 nearly-expired HoT
+-- Slot 1: Tank with Rage power bar + 2 active HoTs + Incoming Danger Cast (Shadow Bolt at 70% fill)
+-- Slot 2: Healer with Mana power bar + 1 active HoT
+-- Slot 3: DPS 1 with Energy power bar + 3 active HoTs + Pink Dispel + Incoming Danger Cast (Fireball at 90% fill)
+-- Slot 4: DPS 2 with Mana power bar
+-- Slot 5: DPS 3 with Mana power bar + 1 nearly-expired HoT
 local TEST_ROSTER = {
 	{
 		role = "TANK", healthPct = 0.70, aggro = true, dispel = false, inRange = true, dead = false,
+		powerType = 1, power = 60, maxPower = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 20 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 4.2 },
@@ -227,6 +228,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "HEALER", healthPct = 1.00, aggro = false, dispel = false, inRange = true, dead = false,
+		powerType = 0, power = 85, maxPower = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 18 },
 		},
@@ -234,6 +236,7 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.50, aggro = true, dispel = true, inRange = true, dead = false,
+		powerType = 3, power = 90, maxPower = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 2, duration = 20, expirationTime = 10 },
 			{ spellId = 124682, icon = 136035, count = 1, duration = 6,  expirationTime = 2.4 },
@@ -243,11 +246,13 @@ local TEST_ROSTER = {
 	},
 	{
 		role = "DAMAGER", healthPct = 0.35, aggro = false, dispel = false, inRange = true, dead = false,
+		powerType = 0, power = 100, maxPower = 100,
 		hots = {},
 		danger = nil
 	},
 	{
 		role = "DAMAGER", healthPct = 0.10, aggro = false, dispel = false, inRange = true, dead = false,
+		powerType = 0, power = 40, maxPower = 100,
 		hots = {
 			{ spellId = 119611, icon = 136074, count = 1, duration = 20, expirationTime = 2 },
 		},
@@ -530,7 +535,7 @@ local function CreateSlot(index)
 	-- Subtle vertical divider separating role column from main area
 	local divider = f:CreateTexture(nil, "ARTWORK")
 	divider:SetPoint("TOPLEFT", f, "TOPLEFT", ROLE_COLUMN_WIDTH, -1)
-	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, HEALTH_BAR_HEIGHT + 1)
+	divider:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH, 1)
 	divider:SetWidth(1)
 	divider:SetColorTexture(0.2, 0.2, 0.2, 0.6)
 
@@ -556,7 +561,6 @@ local function CreateSlot(index)
 		durationBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
 
 		-- 11x11 HoT icon frame placed immediately BELOW the duration bar with 1px gap
-		-- 1px bottom clearance above health bar -> Y = -49px
 		local iconFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
 		iconFrame:SetSize(HOT_ICON_SIZE, HOT_ICON_SIZE)
 		iconFrame:SetPoint("TOPLEFT", durationBar, "BOTTOMLEFT", 0, -1)
@@ -595,11 +599,25 @@ local function CreateSlot(index)
 		hotIcons[i] = iconFrame
 	end
 
-	-- Thin bottom health line
+	-- Thin 3px primary resource bar anchored at bottom right of role column
+	local powerBar = CreateFrame("StatusBar", nil, f)
+	powerBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ROLE_COLUMN_WIDTH + 1, 1)
+	powerBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
+	powerBar:SetHeight(3)
+	powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	powerBar:SetMinMaxValues(0, 1)
+	powerBar:SetValue(1)
+	powerBar:EnableMouse(false)
+
+	local powerBarBg = powerBar:CreateTexture(nil, "BACKGROUND")
+	powerBarBg:SetAllPoints(powerBar)
+	powerBarBg:SetColorTexture(0.04, 0.04, 0.04, 0.8)
+
+	-- 7px health bar anchored directly above powerBar
 	local healthBar = CreateFrame("StatusBar", nil, f)
-	healthBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
-	healthBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
-	healthBar:SetHeight(HEALTH_BAR_HEIGHT)
+	healthBar:SetPoint("BOTTOMLEFT", powerBar, "TOPLEFT", 0, 1)
+	healthBar:SetPoint("BOTTOMRIGHT", powerBar, "TOPRIGHT", 0, 1)
+	healthBar:SetHeight(7)
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	healthBar:SetMinMaxValues(0, 1)
 	healthBar:SetValue(1)
@@ -650,6 +668,8 @@ local function CreateSlot(index)
 		hotIcons = hotIcons,
 		healthBar = healthBar,
 		healthBarBg = healthBarBg,
+		powerBar = powerBar,
+		powerBarBg = powerBarBg,
 		dangerContainer = dangerContainer,
 		dangerIcon = dangerIcon,
 		dangerBar = dangerBar,
@@ -923,6 +943,50 @@ local function RenderSlotState(slot, hasAggro, hasDispel, inRange, isDead)
 	end
 end
 
+local function UpdatePowerState(slot, entryPower)
+	if not slot or not slot.powerBar then return end
+
+	if ns.testModeActive and entryPower then
+		slot.powerBar:SetMinMaxValues(0, entryPower.maxPower or 100)
+		slot.powerBar:SetValue(entryPower.power or 0)
+		local color = PowerBarColor[entryPower.powerType] or PowerBarColor[0]
+		if color then
+			slot.powerBar:SetStatusBarColor(color.r, color.g, color.b, 0.9)
+		else
+			slot.powerBar:SetStatusBarColor(0.0, 0.5, 1.0, 0.9)
+		end
+		slot.powerBar:Show()
+		return
+	end
+
+	local unit = slot.unit
+	if not unit or not UnitExists(unit) then
+		slot.powerBar:SetMinMaxValues(0, 1)
+		slot.powerBar:SetValue(0)
+		return
+	end
+
+	local pType, pToken = UnitPowerType(unit)
+	local curPower = UnitPower(unit, pType)
+	local maxPower = UnitPowerMax(unit, pType)
+
+	if curPower and maxPower then
+		slot.powerBar:SetMinMaxValues(0, maxPower)
+		slot.powerBar:SetValue(curPower)
+	else
+		slot.powerBar:SetMinMaxValues(0, 1)
+		slot.powerBar:SetValue(0)
+	end
+
+	local color = PowerBarColor[pToken] or PowerBarColor[pType] or PowerBarColor[0]
+	if color then
+		slot.powerBar:SetStatusBarColor(color.r, color.g, color.b, 0.9)
+	else
+		slot.powerBar:SetStatusBarColor(0.0, 0.5, 1.0, 0.9)
+	end
+	slot.powerBar:Show()
+end
+
 local function UpdateSlot(slot, unit)
 	slot.unit = unit
 	if not unit or not UnitExists(unit) then
@@ -958,6 +1022,7 @@ local function UpdateSlot(slot, unit)
 	end
 
 	RenderHotIcons(slot, GetUnitPlayerHoTs(unit))
+	UpdatePowerState(slot, nil)
 
 	local isDead = UnitIsDead(unit)
 	local inRange = isDead or UnitIsInRange(unit)
@@ -1122,6 +1187,7 @@ local function UpdateTestSlot(slot, entry)
 	RenderRoleIcon(slot, entry.role)
 	RenderHealthFraction(slot, entry.healthPct)
 	RenderHotIcons(slot, entry.hots)
+	UpdatePowerState(slot, entry)
 	RenderSlotState(slot, entry.aggro, entry.dispel, entry.inRange, entry.dead)
 
 	if entry.danger then
@@ -1453,6 +1519,10 @@ function ns.InitializePartyFrame()
 	watcher:RegisterEvent("UNIT_CONNECTION")
 	watcher:RegisterEvent("UNIT_HEALTH")
 	watcher:RegisterEvent("UNIT_MAXHEALTH")
+	watcher:RegisterEvent("UNIT_POWER_UPDATE")
+	watcher:RegisterEvent("UNIT_POWER_FREQUENT")
+	watcher:RegisterEvent("UNIT_MAXPOWER")
+	watcher:RegisterEvent("UNIT_DISPLAYPOWER")
 	watcher:RegisterEvent("UNIT_THREAT_SITUATION_UPDATE")
 	watcher:RegisterEvent("UNIT_THREAT_LIST_UPDATE")
 	watcher:RegisterEvent("UNIT_AURA")
@@ -1490,7 +1560,7 @@ function ns.InitializePartyFrame()
 		elseif event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" or event == "EDIT_MODE_LAYOUTS_UPDATED" or event == "COMPACT_UNIT_FRAME_PROFILES_LOADED" then
 			ns.ApplyBlizzardPartyFrameSuppression()
 			ns.RefreshRoster()
-		elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
+		elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_POWER_UPDATE" or event == "UNIT_POWER_FREQUENT" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" or event == "UNIT_THREAT_SITUATION_UPDATE" or event == "UNIT_AURA" or event == "UNIT_FLAGS" then
 			ns.RefreshUnitState(unit)
 		elseif event == "UNIT_THREAT_LIST_UPDATE" then
 			for i = 1, MAX_SLOTS do
