@@ -483,109 +483,126 @@ local function GetUnitPlayerHoTs(unit)
 	return hots
 end
 
--- Curated allowlist of major defensive cooldown spell IDs for all classes (with priority coverage for Paladin defensives)
-local DEFENSIVE_AURA_IDS = {
+-- Curated allowlist array of major defensive cooldown spell IDs for all classes (passed as plain constants to AuraUtil.FindAuraBySpellID)
+local DEFENSIVE_SPELL_IDS = {
 	-- Paladin (Priority Live Test Case)
-	[642]    = true, -- Divine Shield
-	[1022]   = true, -- Blessing of Protection
-	[31850]  = true, -- Ardent Defender
-	[86659]  = true, -- Guardian of Ancient Kings
-	[184662] = true, -- Shield of Vengeance
-	[387174] = true, -- Eye of Tyr
-	[498]    = true, -- Divine Protection
-	[389539] = true, -- Sentinel
-	[204018] = true, -- Blessing of Spellwarding
-	[6940]   = true, -- Blessing of Sacrifice
-	[199448] = true, -- Ultimate Retribution
+	642,    -- Divine Shield
+	1022,   -- Blessing of Protection
+	31850,  -- Ardent Defender
+	86659,  -- Guardian of Ancient Kings
+	184662, -- Shield of Vengeance
+	387174, -- Eye of Tyr
+	498,    -- Divine Protection
+	389539, -- Sentinel
+	204018, -- Blessing of Spellwarding
+	6940,   -- Blessing of Sacrifice
+	199448, -- Ultimate Retribution
 
 	-- Warrior
-	[871]    = true, -- Shield Wall
-	[12975]  = true, -- Last Stand
-	[118038] = true, -- Die by the Sword
-	[23920]  = true, -- Spell Reflection
-	[132404] = true, -- Shield Block
-	[190456] = true, -- Ignore Pain
+	871,    -- Shield Wall
+	12975,  -- Last Stand
+	118038, -- Die by the Sword
+	23920,  -- Spell Reflection
+	132404, -- Shield Block
+	190456, -- Ignore Pain
 
 	-- Druid
-	[22812]  = true, -- Barkskin
-	[61336]  = true, -- Survival Instincts
-	[102558] = true, -- Incarnation: Guardian of Ursoc
-	[200851] = true, -- Rage of the Sleeper
+	22812,  -- Barkskin
+	61336,  -- Survival Instincts
+	102558, -- Incarnation: Guardian of Ursoc
+	200851, -- Rage of the Sleeper
 
 	-- Mage
-	[45438]  = true, -- Ice Block
-	[414658] = true, -- Ice Cold
-	[235313] = true, -- Blazing Barrier
-	[110959] = true, -- Greater Invisibility
-	[11426]  = true, -- Ice Barrier
-	[235450] = true, -- Prismatic Barrier
+	45438,  -- Ice Block
+	414658, -- Ice Cold
+	235313, -- Blazing Barrier
+	110959, -- Greater Invisibility
+	11426,  -- Ice Barrier
+	235450, -- Prismatic Barrier
 
 	-- Monk
-	[115203] = true, -- Fortifying Brew (Brewmaster)
-	[120954] = true, -- Fortifying Brew (Windwalker/Mistweaver)
-	[122783] = true, -- Diffuse Magic
-	[122278] = true, -- Dampen Harm
-	[122470] = true, -- Touch of Karma
-	[115176] = true, -- Zen Meditation
+	115203, -- Fortifying Brew (Brewmaster)
+	120954, -- Fortifying Brew (Windwalker/Mistweaver)
+	122783, -- Diffuse Magic
+	122278, -- Dampen Harm
+	122470, -- Touch of Karma
+	115176, -- Zen Meditation
 
 	-- Shaman
-	[108271] = true, -- Astral Shift
-	[198838] = true, -- Earthen Wall Totem
+	108271, -- Astral Shift
+	198838, -- Earthen Wall Totem
 
 	-- Demon Hunter
-	[196555] = true, -- Netherwalk
-	[198589] = true, -- Blur
-	[196718] = true, -- Darkness
-	[187827] = true, -- Metamorphosis (Vengeance)
-	[203720] = true, -- Demon Spikes
+	196555, -- Netherwalk
+	198589, -- Blur
+	196718, -- Darkness
+	187827, -- Metamorphosis (Vengeance)
+	203720, -- Demon Spikes
 
 	-- Warlock
-	[104773] = true, -- Unending Resolve
-	[108416] = true, -- Dark Pact
+	104773, -- Unending Resolve
+	108416, -- Dark Pact
 
 	-- Priest
-	[47585]  = true, -- Dispersion
-	[33206]  = true, -- Pain Suppression
-	[19236]  = true, -- Desperate Prayer
-	[47788]  = true, -- Guardian Spirit
-	[213610] = true, -- Holy Word: Salvation
+	47585,  -- Dispersion
+	33206,  -- Pain Suppression
+	19236,  -- Desperate Prayer
+	47788,  -- Guardian Spirit
+	213610, -- Holy Word: Salvation
 
 	-- Hunter
-	[186265] = true, -- Aspect of the Turtle
-	[264735] = true, -- Survival of the Fittest
+	186265, -- Aspect of the Turtle
+	264735, -- Survival of the Fittest
 
 	-- Rogue
-	[5277]   = true, -- Evasion
-	[31224]  = true, -- Cloak of Shadows
-	[1966]   = true, -- Feint
+	5277,   -- Evasion
+	31224,  -- Cloak of Shadows
+	1966,   -- Feint
 
 	-- Death Knight
-	[48707]  = true, -- Anti-Magic Shell
-	[48792]  = true, -- Icebound Fortitude
-	[55233]  = true, -- Vampiric Blood
-	[194679] = true, -- Rune Tap
-	[49028]  = true, -- Dancing Rune Weapon
-	[145629] = true, -- Anti-Magic Zone
+	48707,  -- Anti-Magic Shell
+	48792,  -- Icebound Fortitude
+	55233,  -- Vampiric Blood
+	194679, -- Rune Tap
+	49028,  -- Dancing Rune Weapon
+	145629, -- Anti-Magic Zone
 
 	-- Evoker
-	[363916] = true, -- Obsidian Scales
-	[374348] = true, -- Renewing Blaze
-	[370960] = true, -- Emerald Communion
+	363916, -- Obsidian Scales
+	374348, -- Renewing Blaze
+	370960, -- Emerald Communion
 }
 
+ns.liveDefensiveActive = false
+ns.liveDefensiveRestricted = false
+
 local function HasDefensiveAura(unit)
-	if not unit or not UnitExists(unit) or not C_UnitAuras or not C_UnitAuras.GetAuraDataByIndex then
+	if not unit or not UnitExists(unit) then
 		return false
 	end
 
-	for i = 1, 40 do
-		local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
-		if not aura then break end
-		if aura.spellId and DEFENSIVE_AURA_IDS[aura.spellId] then
-			return true
+	local found = false
+	local scanOk = pcall(function()
+		if AuraUtil and AuraUtil.FindAuraBySpellID then
+			for i = 1, #DEFENSIVE_SPELL_IDS do
+				local aura = AuraUtil.FindAuraBySpellID(DEFENSIVE_SPELL_IDS[i], unit, "HELPFUL")
+				if aura then
+					found = true
+					return
+				end
+			end
 		end
+	end)
+
+	if not scanOk then
+		ns.liveDefensiveActive = false
+		ns.liveDefensiveRestricted = true
+		return false
 	end
-	return false
+
+	ns.liveDefensiveActive = true
+	ns.liveDefensiveRestricted = false
+	return found
 end
 
 local function UpdateDefensiveState(slot, active)
@@ -2089,6 +2106,13 @@ function ns.PrintStatus()
 	else
 		print("  Live Health Bar Colour: |cff00ff00Dynamic Green->Yellow->Red interpolation active|r")
 	end
+	if ns.liveDefensiveRestricted then
+		print("  Live Defensive Detection: |cffffaa00Disabled due to Retail secret aura restriction|r")
+	elseif ns.liveDefensiveActive then
+		print("  Live Defensive Detection: |cff00ff00AuraUtil.FindAuraBySpellID active|r")
+	else
+		print("  Live Defensive Detection: |cff00ff00Active (no defensive currently on party)|r")
+	end
 end
 
 function ns.PrintAuras(unit)
@@ -2107,9 +2131,19 @@ function ns.PrintAuras(unit)
 		local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
 		if not aura then break end
 		count = count + 1
-		local isDefensive = (aura.spellId and DEFENSIVE_AURA_IDS[aura.spellId]) and "|cff00ff00[DEFENSIVE MATCH]|r" or ""
-		print(string.format("  - #%d: %s (spellID=%s, icon=%s) %s",
-			i, tostring(aura.name), tostring(aura.spellId), tostring(aura.icon), isDefensive))
+		local isDef = false
+		pcall(function()
+			if AuraUtil and AuraUtil.FindAuraBySpellID then
+				for _, sId in ipairs(DEFENSIVE_SPELL_IDS) do
+					if AuraUtil.FindAuraBySpellID(sId, unit, "HELPFUL") then
+						isDef = true
+						break
+					end
+				end
+			end
+		end)
+		local matchText = isDef and "|cff00ff00[DEFENSIVE MATCH]|r" or ""
+		print(string.format("  - #%d: aura object present %s", i, matchText))
 	end
 	if count == 0 then
 		print("  No helpful auras found.")
